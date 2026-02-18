@@ -24,15 +24,16 @@ from passlib.context import CryptContext
 # Configuration
 # ============================================================================
 
-DATABASE_PATH = "leaderboard.db"
+DATABASE_PATH = os.environ.get("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "leaderboard.db"))
 JWT_SECRET = os.environ.get("JWT_SECRET", secrets.token_hex(32))
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(os.path.dirname(__file__), "uploads"))
 PARENT_DIR = os.path.dirname(os.path.dirname(__file__))  # SouthEast Fishing Groups API/
 DEFAULT_ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@ncbillfish.com")
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme123")
 
+os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(
