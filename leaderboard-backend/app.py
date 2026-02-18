@@ -3,6 +3,7 @@ NC Billfish Series Leaderboard — Backend API
 FastAPI + SQLite backend for multi-tenant fishing tournament leaderboards.
 """
 
+import io
 import os
 import json
 import sqlite3
@@ -13,12 +14,15 @@ from contextlib import contextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from jose import jwt, JWTError
 from passlib.context import CryptContext
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, Alignment, numbers
+from openpyxl.utils import get_column_letter
 
 # ============================================================================
 # Configuration
@@ -794,6 +798,225 @@ def delete_point(slug: str, point_id: int, user: dict = Depends(get_current_user
         if not affected:
             raise HTTPException(status_code=404, detail="Point entry not found")
         return {"deleted": True}
+
+
+# ============================================================================
+# Excel Template Download & Import
+# ============================================================================
+
+@app.get("/api/{slug}/template/{tournament_id}")
+def download_template(slug: str, tournament_id: int, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        sid = s["id"]
+
+        tourn = conn.execute(
+            "SELECT * FROM tournaments WHERE id = ? AND series_id = ?", (tournament_id, sid)
+        ).fetchone()
+        if not tourn:
+            raise HTTPException(status_code=404, detail="Tournament not found")
+
+        categories = [dict(r) for r in conn.execute(
+            "SELECT * FROM categories WHERE series_id = ? ORDER BY sort_order", (sid,)
+        ).fetchall()]
+        participants = [dict(r) for r in conn.execute(
+            "SELECT * FROM participants WHERE series_id = ?", (sid,)
+        ).fetchall()]
+        existing_points = [dict(r) for r in conn.execute(
+            "SELECT * FROM points WHERE series_id = ? AND tournament_id = ?", (sid, tournament_id)
+        ).fetchall()]
+
+        # Build lookup for existing points: (participant_id, category_id) -> points
+        pts_lookup = {(p["participant_id"], p["category_id"]): p["points"] for p in existing_points}
+
+        boats = [p for p in participants if p["participant_type"] == "boat"]
+        lady_anglers = [p for p in participants if p["participant_type"] == "lady_angler"]
+        junior_anglers = [p for p in participants if p["participant_type"] == "junior_angler"]
+
+        # Boat categories: non-standalone, non-individual (no applies_to like lady_angler/junior_angler)
+        boat_cats = [c for c in categories if not c["is_standalone"] and c["applies_to"] not in ("lady_angler", "junior_angler")]
+        lady_cats = [c for c in categories if c["applies_to"] == "lady_angler"]
+        junior_cats = [c for c in categories if c["applies_to"] == "junior_angler"]
+
+        wb = Workbook()
+
+        def build_sheet(ws, title, parts, cats, name_key, sub_key):
+            ws.title = title
+            if not parts or not cats:
+                ws.append(["No data for this sheet"])
+                return
+
+            # Row 1: Headers
+            headers = ["ID", name_key, sub_key] + [c["name"] for c in cats]
+            ws.append(headers)
+
+            # Row 2: Hidden meta row with category IDs
+            meta = ["__meta__", "", ""] + [str(c["id"]) for c in cats]
+            ws.append(meta)
+
+            # Data rows
+            for p in parts:
+                name_val = p.get("boat_name") or p.get("angler_name") or ""
+                if name_key == "Boat Name":
+                    sub_val = p.get("captain") or ""
+                else:
+                    # Individual: show boat name
+                    boat = next((b for b in boats if b["id"] == p.get("boat_id")), None)
+                    sub_val = boat["boat_name"] if boat else ""
+                row = [p["id"], name_val, sub_val]
+                for c in cats:
+                    val = pts_lookup.get((p["id"], c["id"]))
+                    row.append(val if val is not None else None)
+                ws.append(row)
+
+            # Styling
+            bold = Font(bold=True)
+            for cell in ws[1]:
+                cell.font = bold
+                cell.alignment = Alignment(horizontal="center")
+
+            # Hide meta row (row 2) and ID column (col A)
+            ws.row_dimensions[2].hidden = True
+            ws.column_dimensions["A"].hidden = True
+
+            # Auto-size columns
+            for col_idx in range(1, len(headers) + 1):
+                max_len = max(
+                    len(str(ws.cell(row=r, column=col_idx).value or ""))
+                    for r in range(1, ws.max_row + 1)
+                )
+                ws.column_dimensions[get_column_letter(col_idx)].width = min(max(max_len + 2, 10), 30)
+
+            # Number format for point cells (columns D onward, row 3+)
+            for row in ws.iter_rows(min_row=3, min_col=4, max_col=len(headers)):
+                for cell in row:
+                    cell.number_format = numbers.FORMAT_NUMBER_00
+
+        # First sheet (default) = Boats
+        build_sheet(wb.active, "Boats", boats, boat_cats, "Boat Name", "Captain")
+
+        # Lady Anglers sheet
+        ws_lady = wb.create_sheet()
+        build_sheet(ws_lady, "Lady Anglers", lady_anglers, lady_cats, "Angler Name", "Boat")
+
+        # Junior Anglers sheet
+        ws_junior = wb.create_sheet()
+        build_sheet(ws_junior, "Junior Anglers", junior_anglers, junior_cats, "Angler Name", "Boat")
+
+        # Write to bytes
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        filename = f"Tournament_{tournament_id}_Results_Template.xlsx"
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+
+@app.post("/api/{slug}/import-results/{tournament_id}")
+async def import_results(slug: str, tournament_id: int, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        sid = s["id"]
+
+        tourn = conn.execute(
+            "SELECT * FROM tournaments WHERE id = ? AND series_id = ?", (tournament_id, sid)
+        ).fetchone()
+        if not tourn:
+            raise HTTPException(status_code=404, detail="Tournament not found")
+
+        if not file.filename.endswith(".xlsx"):
+            raise HTTPException(status_code=400, detail="Only .xlsx files are accepted")
+
+        content = await file.read()
+        try:
+            wb = load_workbook(io.BytesIO(content), data_only=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Could not read Excel file")
+
+        point_entries = []
+
+        for ws in wb.worksheets:
+            if ws.max_row < 3:
+                continue
+
+            # Row 2 is the meta row: col A = "__meta__", cols D+ = category IDs
+            meta_marker = ws.cell(row=2, column=1).value
+            if str(meta_marker).strip() != "__meta__":
+                continue
+
+            # Read category IDs from meta row (columns 4+)
+            cat_ids = []
+            for col_idx in range(4, ws.max_column + 1):
+                val = ws.cell(row=2, column=col_idx).value
+                try:
+                    cat_ids.append(int(val))
+                except (TypeError, ValueError):
+                    cat_ids.append(None)
+
+            # Data rows start at row 3
+            for row_idx in range(3, ws.max_row + 1):
+                pid_val = ws.cell(row=row_idx, column=1).value
+                try:
+                    participant_id = int(pid_val)
+                except (TypeError, ValueError):
+                    continue
+
+                for i, cat_id in enumerate(cat_ids):
+                    if cat_id is None:
+                        continue
+                    cell_val = ws.cell(row=row_idx, column=4 + i).value
+                    try:
+                        pts = float(cell_val) if cell_val is not None else 0
+                    except (TypeError, ValueError):
+                        pts = 0
+
+                    point_entries.append(PointEntry(
+                        tournament_id=tournament_id,
+                        participant_id=participant_id,
+                        category_id=cat_id,
+                        points=pts,
+                    ))
+
+        # Upsert all points using the same logic as upsert_points
+        inserted = 0
+        updated = 0
+        deleted = 0
+        for entry in point_entries:
+            existing = conn.execute(
+                "SELECT id FROM points WHERE tournament_id = ? AND participant_id = ? AND category_id = ?",
+                (entry.tournament_id, entry.participant_id, entry.category_id),
+            ).fetchone()
+            if entry.points <= 0:
+                if existing:
+                    conn.execute("DELETE FROM points WHERE id = ?", (existing["id"],))
+                    deleted += 1
+            elif existing:
+                conn.execute(
+                    "UPDATE points SET points = ?, notes = ? WHERE id = ?",
+                    (entry.points, entry.notes, existing["id"]),
+                )
+                updated += 1
+            else:
+                conn.execute(
+                    "INSERT INTO points (series_id, tournament_id, participant_id, category_id, points, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                    (sid, entry.tournament_id, entry.participant_id, entry.category_id, entry.points, entry.notes),
+                )
+                inserted += 1
+
+        # Auto-mark tournament as completed if it was upcoming
+        if dict(tourn)["status"] == "upcoming":
+            conn.execute("UPDATE tournaments SET status = 'completed' WHERE id = ?", (tournament_id,))
+
+        conn.commit()
+        return {"inserted": inserted, "updated": updated, "deleted": deleted}
 
 
 # ============================================================================

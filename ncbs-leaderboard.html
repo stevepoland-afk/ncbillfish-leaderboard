@@ -453,6 +453,11 @@ th, td { padding: 0.5rem 0.75rem; text-align: left; }
         <div><button class="btn btn-primary" id="saveResultsBtn">Save Results</button></div>
         <span class="unsaved-indicator" id="unsavedIndicator">&#x26A0; Unsaved changes</span>
       </div>
+      <div class="form-row" style="align-items:center; gap:10px; margin-bottom:8px;">
+        <button class="btn" id="downloadTemplateBtn" title="Download Excel template for selected tournament">Download Template</button>
+        <input type="file" id="excelFileInput" accept=".xlsx" style="max-width:220px;">
+        <button class="btn btn-primary" id="importExcelBtn">Import Excel</button>
+      </div>
       <div class="results-type-tabs" id="resultsTypeTabs">
         <div class="results-type-tab active" data-rtype="boats">Boats (Release &amp; Gamefish)</div>
         <div class="results-type-tab" data-rtype="lady_angler">Lady Angler</div>
@@ -1346,6 +1351,9 @@ function initAdminHandlers() {
     });
   });
 
+  document.getElementById('downloadTemplateBtn').addEventListener('click', downloadTemplate);
+  document.getElementById('importExcelBtn').addEventListener('click', importExcel);
+
   document.getElementById('addBoatBtn').addEventListener('click', addBoat);
   document.getElementById('addAnglerBtn').addEventListener('click', addAngler);
   document.getElementById('addTournBtn').addEventListener('click', addTournament);
@@ -1428,6 +1436,62 @@ async function saveResults() {
     showToast('Results saved!');
   } catch(e) {
     showToast('Error saving results: ' + e.message, true);
+  }
+}
+
+// ===== ADMIN: EXCEL TEMPLATE =====
+async function downloadTemplate() {
+  const tid = parseInt(document.getElementById('resultsTournament').value);
+  if (!tid) { showToast('Select a tournament first', true); return; }
+  try {
+    const url = API_BASE + '/template/' + tid;
+    const resp = await fetch(url, { headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN } });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: 'Download failed' }));
+      throw new Error(err.detail || 'Download failed');
+    }
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Tournament_${tid}_Results_Template.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+    showToast('Template downloaded!');
+  } catch(e) {
+    showToast('Error downloading template: ' + e.message, true);
+  }
+}
+
+async function importExcel() {
+  const tid = parseInt(document.getElementById('resultsTournament').value);
+  if (!tid) { showToast('Select a tournament first', true); return; }
+  const fileInput = document.getElementById('excelFileInput');
+  if (!fileInput.files.length) { showToast('Choose an Excel file first', true); return; }
+  const file = fileInput.files[0];
+  if (!file.name.endsWith('.xlsx')) { showToast('Only .xlsx files are accepted', true); return; }
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const url = API_BASE + '/import-results/' + tid;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: formData,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: 'Import failed' }));
+      throw new Error(err.detail || 'Import failed');
+    }
+    const result = await resp.json();
+    fileInput.value = '';
+    await refreshData();
+    renderResultsGrid();
+    showToast(`Import complete: ${result.inserted} added, ${result.updated} updated, ${result.deleted} removed`);
+  } catch(e) {
+    showToast('Error importing Excel: ' + e.message, true);
   }
 }
 
