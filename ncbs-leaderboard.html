@@ -552,8 +552,19 @@ th, td { padding: 0.5rem 0.75rem; text-align: left; }
   <div class="admin-panel" id="panel-import-export">
     <div class="admin-card">
       <h3>Export Data</h3>
-      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Download the current dataset as a JSON file.</p>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Download data as JSON or CSV.</p>
       <button class="btn btn-gold" id="exportBtn">Download ncbs-data.json</button>
+      <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--gray-dark);">
+        <label style="color:var(--gray-light);font-size:0.85rem;">CSV Export:</label>
+        <select id="csvExportType" style="margin:0.5rem 0;width:100%;padding:0.5rem;background:var(--dark);color:var(--white);border:1px solid var(--gray-dark);border-radius:4px;">
+          <option value="standings">Standings (current leaderboard view)</option>
+          <option value="participants">All Boats &amp; Anglers</option>
+          <option value="points">Points Detail (all scores by tournament)</option>
+          <option value="tournaments">Tournaments</option>
+          <option value="categories">Categories</option>
+        </select>
+        <button class="btn btn-primary" id="exportCsvBtn">Download CSV</button>
+      </div>
     </div>
     <div class="admin-card">
       <h3>Import Data</h3>
@@ -1340,6 +1351,7 @@ function initAdminHandlers() {
   document.getElementById('addTournBtn').addEventListener('click', addTournament);
   document.getElementById('addCatBtn').addEventListener('click', addCategory);
   document.getElementById('exportBtn').addEventListener('click', exportJSON);
+  document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
   document.getElementById('importBtn').addEventListener('click', importJSON);
   document.getElementById('resetBtn').addEventListener('click', resetData);
 }
@@ -1829,6 +1841,92 @@ async function exportJSON() {
     showToast('JSON exported!');
   } catch(e) {
     showToast('Export failed: ' + e.message, true);
+  }
+}
+
+function csvEscape(val) {
+  if (val == null) return '';
+  const s = String(val);
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportCSV() {
+  try {
+    const type = document.getElementById('csvExportType').value;
+    const ts = new Date().toISOString().slice(0, 10);
+
+    if (type === 'standings') {
+      const standings = await api('standings?category=overall&group=all');
+      const tourns = standings.tournaments || [];
+      const header = ['Rank', 'Boat', 'Captain', ...tourns.map(t => t.event_name), 'Total', 'Best ' + DATA.series.best_of, 'Participation Bonus', 'Events Entered'];
+      const rows = [header];
+      for (const r of standings.standings) {
+        const p = r.participant;
+        rows.push([
+          r.rank, p.boat_name || p.angler_name, p.captain || '',
+          ...tourns.map(t => r.tournamentPoints[String(t.id)] || 0),
+          r.totalAll, r.bestOfScore, r.participationBonus, r.tournamentsEntered
+        ]);
+      }
+      downloadCSV(rows, `standings_${ts}.csv`);
+    }
+
+    else if (type === 'participants') {
+      const header = ['ID', 'Type', 'Boat Name', 'Captain', 'Owner', 'Angler Name', 'Boat Type', 'Sonar', 'Homeport'];
+      const rows = [header];
+      for (const p of DATA.participants) {
+        rows.push([p.id, p.participant_type, p.boat_name || '', p.captain || '', p.owner || '', p.angler_name || '', p.boat_type || '', p.sonar ? 'Yes' : 'No', p.homeport || '']);
+      }
+      downloadCSV(rows, `participants_${ts}.csv`);
+    }
+
+    else if (type === 'points') {
+      const header = ['Participant', 'Type', 'Tournament', 'Category', 'Points', 'Notes'];
+      const rows = [header];
+      for (const pt of DATA.points) {
+        const p = DATA.participants.find(x => x.id === pt.participant_id);
+        const t = DATA.tournaments.find(x => x.id === pt.tournament_id);
+        const c = DATA.categories.find(x => x.id === pt.category_id);
+        rows.push([
+          p ? (p.boat_name || p.angler_name) : pt.participant_id,
+          p ? p.participant_type : '',
+          t ? t.event_name : pt.tournament_id,
+          c ? c.name : pt.category_id,
+          pt.points, pt.notes || ''
+        ]);
+      }
+      downloadCSV(rows, `points_detail_${ts}.csv`);
+    }
+
+    else if (type === 'tournaments') {
+      const header = ['ID', 'Event Number', 'Event Name', 'Date', 'Status'];
+      const rows = [header];
+      for (const t of DATA.tournaments) {
+        rows.push([t.id, t.event_number || '', t.event_name, t.event_date || '', t.status || '']);
+      }
+      downloadCSV(rows, `tournaments_${ts}.csv`);
+    }
+
+    else if (type === 'categories') {
+      const header = ['ID', 'Name', 'Group', 'Scoring Type', 'Standalone', 'Applies To', 'Unit', 'Sort Order'];
+      const rows = [header];
+      for (const c of DATA.categories) {
+        rows.push([c.id, c.name, c.category_group || '', c.scoring_type, c.is_standalone ? 'Yes' : 'No', c.applies_to || '', c.unit, c.sort_order]);
+      }
+      downloadCSV(rows, `categories_${ts}.csv`);
+    }
+
+    showToast('CSV exported!');
+  } catch(e) {
+    showToast('CSV export failed: ' + e.message, true);
   }
 }
 
