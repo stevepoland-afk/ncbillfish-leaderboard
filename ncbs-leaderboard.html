@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NC Billfish Series Leaderboard</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy: #f5f7fa;
+  --navy-light: #ffffff;
+  --navy-mid: #e8ecf1;
+  --seafoam: #0e8a7d;
+  --seafoam-dark: #0a6e64;
+  --gold: #b07d3a;
+  --gold-light: #c9943f;
+  --coral: #e04545;
+  --coral-dark: #c43030;
+  --white: #1a1a2e;
+  --gray: #6b7a8d;
+  --gray-light: #4a5568;
+  --text: #2d3748;
+  --border: rgba(0, 0, 0, 0.1);
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --success: #1a9a52;
+  --warning: #c77d0a;
+  --radius: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+html { font-size: 15px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+  background: var(--navy);
+  background-image: linear-gradient(180deg, var(--navy) 0%, #edf0f5 50%, var(--navy) 100%);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+a { color: var(--seafoam); text-decoration: none; }
+a:hover { color: var(--gold); }
+button {
+  cursor: pointer; font-family: inherit; font-size: 0.9rem;
+  border: none; border-radius: var(--radius);
+  padding: 0.5rem 1rem; transition: all 0.2s;
+}
+input, select, textarea {
+  font-family: inherit; font-size: 0.9rem;
+  background: var(--navy); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.5rem 0.75rem; transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--seafoam); }
+select { appearance: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: 0.5rem 0.75rem; text-align: left; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
+
+/* ===== HEADER ===== */
+.header {
+  background: linear-gradient(135deg, var(--navy-light) 0%, var(--navy-mid) 100%);
+  border-bottom: 2px solid var(--border);
+  padding: 1.25rem 0;
+  position: sticky; top: 0; z-index: 100;
+}
+.header .container { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+.header-left { display: flex; align-items: center; gap: 1rem; }
+.logo-img {
+  height: 60px; width: auto; border-radius: 6px;
+  background: white; padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.series-title { font-size: 1.5rem; font-weight: 700; color: var(--white); }
+.series-subtitle { font-size: 0.85rem; color: var(--gray-light); }
+.series-subtitle span { color: var(--gold); font-weight: 600; }
+.status-badge {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px;
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.status-active { background: rgba(46,204,113,0.2); color: var(--success); border: 1px solid rgba(46,204,113,0.3); }
+.status-completed { background: rgba(78,205,196,0.2); color: var(--seafoam); border: 1px solid rgba(78,205,196,0.3); }
+.status-upcoming { background: rgba(243,156,18,0.2); color: var(--warning); border: 1px solid rgba(243,156,18,0.3); }
+.header-right { text-align: right; font-size: 0.8rem; color: var(--gray); }
+.admin-badge {
+  display: inline-block; background: var(--coral); color: white;
+  padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700; margin-left: 0.5rem;
+}
+
+/* ===== ADMIN NAV ===== */
+.admin-nav { background: var(--navy-light); border-bottom: 1px solid var(--border); display: none; }
+.admin-nav.visible { display: block; }
+.admin-tabs { display: flex; list-style: none; overflow-x: auto; }
+.admin-tabs li {
+  padding: 0.75rem 1.25rem; cursor: pointer; color: var(--gray);
+  font-weight: 500; font-size: 0.9rem; border-bottom: 2px solid transparent;
+  white-space: nowrap; transition: all 0.2s;
+}
+.admin-tabs li:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.admin-tabs li.active { color: var(--seafoam); border-bottom-color: var(--seafoam); }
+
+/* ===== FILTER BAR ===== */
+.filter-bar {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.75rem 1rem; margin: 1rem 0;
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+}
+.filter-bar label { font-size: 0.8rem; color: var(--gray); font-weight: 500; white-space: nowrap; }
+.filter-bar select, .filter-bar input { min-width: 160px; }
+.filter-bar .search-wrap { flex: 1; min-width: 180px; position: relative; }
+.filter-bar .search-wrap input { width: 100%; padding-left: 2rem; }
+.filter-bar .search-wrap::before { content: "\1F50D"; position: absolute; left: 0.6rem; top: 50%; transform: translateY(-50%); font-size: 0.85rem; pointer-events: none; }
+.filter-group { display: flex; align-items: center; gap: 0.4rem; }
+.view-info {
+  font-size: 0.8rem; color: var(--gold); font-style: italic;
+  width: 100%; margin-top: 0.25rem;
+  display: none;
+}
+.view-info.visible { display: block; }
+
+/* ===== SCORING REFERENCE ===== */
+.scoring-ref {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  margin: 0 0 1rem; overflow: hidden;
+}
+.scoring-ref summary {
+  padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  color: var(--gold); list-style: none; display: flex; align-items: center; gap: 0.5rem;
+}
+.scoring-ref summary::before { content: "\25B6"; font-size: 0.6rem; transition: transform 0.2s; }
+.scoring-ref[open] summary::before { transform: rotate(90deg); }
+.scoring-ref summary:hover { color: var(--gold-light); }
+.scoring-ref-grid {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0 1rem 1rem;
+}
+.scoring-ref-item {
+  background: var(--navy-mid); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.5rem 0.85rem; flex: 1; min-width: 160px;
+}
+.scoring-ref-value { font-size: 1.1rem; font-weight: 700; color: var(--seafoam); }
+.scoring-ref-label { font-size: 0.78rem; color: var(--gray-light); margin-top: 0.15rem; }
+.scoring-ref-item.penalty .scoring-ref-value { color: var(--coral); }
+
+/* ===== LEADERBOARD TABLE ===== */
+.leaderboard-wrap {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin-bottom: 1rem;
+}
+.table-scroll { overflow-x: auto; }
+.leaderboard { width: 100%; font-size: 0.9rem; }
+.leaderboard thead th {
+  background: var(--navy-mid); color: var(--gray-light);
+  font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 0.6rem 0.75rem; position: sticky; top: 0;
+  border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+.leaderboard thead th.tournament-col { cursor: pointer; min-width: 55px; text-align: center; }
+.leaderboard thead th.tournament-col:hover { color: var(--seafoam); }
+.leaderboard tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
+.leaderboard tbody tr:hover { background: rgba(78,205,196,0.05); }
+.leaderboard tbody td { padding: 0.6rem 0.75rem; }
+.leaderboard .rank-cell { text-align: center; font-weight: 700; width: 50px; }
+.leaderboard .name-cell { font-weight: 600; color: var(--seafoam); cursor: pointer; }
+.leaderboard .name-cell:hover { color: var(--gold); text-decoration: underline; }
+.leaderboard .sub-cell { color: var(--gray-light); font-size: 0.85rem; }
+.leaderboard .tournament-cell { text-align: center; min-width: 55px; }
+.leaderboard .tournament-cell.counted { color: var(--white); font-weight: 700; }
+.leaderboard .tournament-cell.not-counted { color: var(--gray); }
+.leaderboard .tournament-cell.no-entry { color: rgba(255,255,255,0.1); }
+.leaderboard .bestof-cell { text-align: center; font-weight: 700; color: var(--gold); font-size: 1rem; }
+.leaderboard .total-cell { text-align: center; color: var(--gray-light); }
+.leaderboard .unit-suffix { font-size: 0.7rem; color: var(--gray); margin-left: 2px; }
+.medal { font-size: 1.1rem; margin-right: 0.25rem; }
+.boat-type-badge {
+  display: inline-block; font-size: 0.65rem; padding: 0.1rem 0.35rem;
+  border-radius: 4px; margin-left: 0.4rem; text-transform: uppercase;
+  font-weight: 600; vertical-align: middle;
+}
+.boat-type-badge.private { background: rgba(78,205,196,0.15); color: var(--seafoam); }
+.boat-type-badge.charter { background: rgba(212,165,116,0.15); color: var(--gold); }
+.boat-type-badge.sonar { background: rgba(46,204,113,0.15); color: var(--success); }
+.boat-type-badge.non-sonar { background: rgba(243,156,18,0.15); color: var(--warning); }
+.angler-boat-link { font-size: 0.75rem; color: var(--gray); display: block; font-weight: 400; }
+
+/* ===== MODALS ===== */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7); z-index: 500;
+  align-items: center; justify-content: center; padding: 1rem;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--navy-light); border: 1px solid var(--border);
+  border-radius: var(--radius); width: 100%; max-width: 800px;
+  max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+}
+.modal-header h2 { font-size: 1.2rem; color: var(--white); }
+.modal-close { background: none; color: var(--gray); font-size: 1.5rem; padding: 0; line-height: 1; }
+.modal-close:hover { color: var(--coral); }
+.modal-body { padding: 1.25rem; }
+.modal-body table { font-size: 0.85rem; }
+.modal-body th { background: var(--navy-mid); color: var(--gray-light); font-size: 0.75rem; text-transform: uppercase; }
+.modal-body td { border-bottom: 1px solid rgba(255,255,255,0.04); }
+.detail-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.detail-header .big-icon { font-size: 2.5rem; }
+.boat-photo {
+  width: 100px; height: 100px; object-fit: cover; border-radius: var(--radius);
+  border: 2px solid var(--border); flex-shrink: 0;
+}
+.detail-info h3 { color: var(--seafoam); font-size: 1.1rem; }
+.detail-info p { color: var(--gray-light); font-size: 0.85rem; }
+.detail-stats { display: flex; gap: 1.5rem; margin: 1rem 0; flex-wrap: wrap; }
+.detail-stat { text-align: center; }
+.detail-stat .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
+.detail-stat .stat-label { font-size: 0.75rem; color: var(--gray); text-transform: uppercase; }
+.section-label { font-size: 0.85rem; font-weight: 600; color: var(--gold); margin: 1rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ===== ADMIN PANELS ===== */
+.admin-panel { display: none; padding: 1rem 0; }
+.admin-panel.visible { display: block; }
+.admin-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1rem;
+}
+.admin-card h3 { color: var(--white); margin-bottom: 1rem; font-size: 1rem; }
+.form-row { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.form-group { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 150px; }
+.form-group label { font-size: 0.8rem; color: var(--gray-light); font-weight: 500; }
+.btn { padding: 0.5rem 1.25rem; border-radius: var(--radius); font-weight: 600; font-size: 0.85rem; transition: all 0.2s; }
+.btn-primary { background: var(--seafoam); color: var(--navy); }
+.btn-primary:hover { background: var(--seafoam-dark); }
+.btn-secondary { background: var(--navy-mid); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--seafoam); }
+.btn-danger { background: var(--coral); color: white; }
+.btn-danger:hover { background: var(--coral-dark); }
+.btn-gold { background: var(--gold); color: var(--navy); }
+.btn-gold:hover { background: var(--gold-light); }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+.btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+
+/* Admin results */
+.results-section { margin-bottom: 1.5rem; }
+.results-section h4 { color: var(--seafoam); font-size: 0.9rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; }
+.results-grid { overflow-x: auto; }
+.results-grid table { font-size: 0.85rem; }
+.results-grid th { background: var(--navy-mid); position: sticky; top: 0; white-space: nowrap; }
+.results-grid td { padding: 0.4rem 0.5rem; }
+.results-grid input[type="number"] { width: 70px; padding: 0.3rem 0.4rem; text-align: center; }
+.results-grid .row-label { white-space: nowrap; font-weight: 500; color: var(--seafoam); min-width: 120px; }
+.results-grid .row-sublabel { font-size: 0.75rem; color: var(--gray); display: block; font-weight: 400; }
+.unsaved-indicator { color: var(--warning); font-weight: 600; font-size: 0.85rem; display: none; }
+.unsaved-indicator.show { display: inline; }
+.results-type-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.results-type-tab {
+  padding: 0.4rem 0.9rem; border-radius: var(--radius); font-size: 0.8rem;
+  background: var(--navy-mid); color: var(--gray); cursor: pointer;
+  border: 1px solid var(--border); transition: all 0.2s;
+}
+.results-type-tab:hover { color: var(--text); border-color: var(--seafoam); }
+.results-type-tab.active { background: var(--seafoam); color: var(--navy); border-color: var(--seafoam); font-weight: 600; }
+
+/* Item list */
+.item-list { list-style: none; }
+.item-list li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); gap: 0.75rem;
+}
+.item-list li:last-child { border-bottom: none; }
+.item-info { flex: 1; }
+.item-info .item-name { font-weight: 600; color: var(--text); }
+.item-info .item-meta { font-size: 0.8rem; color: var(--gray); }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  background: var(--navy-mid); border: 1px solid var(--seafoam);
+  color: var(--text); padding: 0.75rem 1.25rem; border-radius: var(--radius);
+  box-shadow: var(--shadow); z-index: 600;
+  transform: translateY(100px); opacity: 0; transition: all 0.3s; font-size: 0.9rem;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { border-color: var(--coral); }
+
+/* ===== WATERMARK ===== */
+.leaderboard-wrap { position: relative; }
+.leaderboard-wrap::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: url('/static/NCBillfishSeries.jpg') center center / 350px no-repeat;
+  opacity: 0.12;
+}
+.leaderboard-wrap .table-scroll { position: relative; z-index: 1; }
+
+/* ===== EMPTY STATE ===== */
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--gray); }
+.empty-state .empty-icon { font-size: 3rem; margin-bottom: 0.5rem; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .filter-group { width: 100%; }
+  .filter-bar select, .filter-bar input { width: 100%; min-width: unset; }
+}
+@media (max-width: 640px) {
+  html { font-size: 14px; }
+  .header .container { flex-direction: column; align-items: flex-start; }
+  .logo-img { height: 45px; }
+  .series-title { font-size: 1.2rem; }
+  .leaderboard .hide-mobile { display: none; }
+  .leaderboard .name-cell { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-tabs li { padding: 0.6rem 0.9rem; font-size: 0.8rem; }
+}
+
+/* ===== PRINT ===== */
+@media print {
+  body { background: white; color: #222; }
+  .header { background: white; border-bottom: 2px solid #333; position: static; }
+  .logo-img { background: white; height: 50px; box-shadow: none; }
+  .series-title { color: #111; }
+  .series-subtitle { color: #555; }
+  .filter-bar, .admin-nav, .admin-panel, .admin-badge { display: none !important; }
+  .leaderboard-wrap { border: 1px solid #ccc; }
+  .leaderboard thead th { background: #eee; color: #333; }
+  .leaderboard tbody tr { border-bottom: 1px solid #ddd; }
+  .leaderboard tbody td, .leaderboard .name-cell, .leaderboard .bestof-cell, .leaderboard .total-cell { color: #222; }
+  .leaderboard .tournament-cell.counted { color: #000; }
+  .leaderboard .tournament-cell.not-counted { color: #888; }
+  .boat-type-badge { border: 1px solid #aaa; color: #555; background: #f0f0f0; }
+  .modal-overlay, .toast { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="container">
+    <div class="header-left">
+      <img src="/static/NCBillfishSeries.jpg" alt="NC Billfish Series" class="logo-img">
+      <div>
+        <div class="series-title" id="seriesTitle">NC Billfish Series</div>
+        <div class="series-subtitle">
+          <span id="seriesYear">2026</span> &mdash; Best <span id="bestOf">3</span> of <span id="totalEvents">8</span> tournaments &bull; <span id="participationPts">50</span> participation pts per event
+          <span class="status-badge status-active" id="statusBadge">Active</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div id="updatedAt"></div>
+      <span id="adminBadgeHeader" class="admin-badge" style="display:none;">ADMIN MODE</span>
+      <div style="margin-top:0.3rem;">
+        <button class="btn btn-primary btn-sm" id="loginBtn">Admin Login</button>
+        <button class="btn btn-danger btn-sm" id="logoutBtn" style="display:none;">Logout</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ADMIN NAV -->
+<nav class="admin-nav" id="adminNav">
+  <div class="container">
+    <ul class="admin-tabs" id="adminTabs">
+      <li data-tab="leaderboard" class="active">Leaderboard</li>
+      <li data-tab="enter-results">Enter Results</li>
+      <li data-tab="manage-boats">Manage Boats</li>
+      <li data-tab="manage-tournaments">Manage Tournaments</li>
+      <li data-tab="manage-categories">Manage Categories</li>
+      <li data-tab="import-export">Import / Export</li>
+    </ul>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="container">
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar" id="filterBar">
+    <div class="filter-group">
+      <label>Category</label>
+      <select id="filterCategory"><option value="overall">Overall (Release Points)</option></select>
+    </div>
+    <div class="filter-group" id="groupFilterWrap">
+      <label>Group</label>
+      <select id="filterGroup">
+        <option value="all">All Boats</option>
+        <option value="private">Private Boats</option>
+        <option value="charter">Charter Boats</option>
+        <option value="sonar">Sonar</option>
+        <option value="non_sonar">Non-Sonar</option>
+      </select>
+    </div>
+    <div class="search-wrap">
+      <input type="text" id="filterSearch" placeholder="Search boat, captain, or angler...">
+    </div>
+    <div class="view-info" id="viewInfo"></div>
+  </div>
+
+  <!-- SCORING REFERENCE -->
+  <details class="scoring-ref" id="scoringRef">
+    <summary>Scoring Reference</summary>
+    <div class="scoring-ref-grid">
+      <div class="scoring-ref-item">
+        <div class="scoring-ref-value">50 pts</div>
+        <div class="scoring-ref-label">Per tournament series fished</div>
+      </div>
+      <div class="scoring-ref-item">
+        <div class="scoring-ref-value">400 pts</div>
+        <div class="scoring-ref-label">Per blue marlin released</div>
+      </div>
+      <div class="scoring-ref-item">
+        <div class="scoring-ref-value">125 pts</div>
+        <div class="scoring-ref-label">Per white marlin, sailfish, or spearfish released</div>
+      </div>
+      <div class="scoring-ref-item">
+        <div class="scoring-ref-value">1 pt/lb</div>
+        <div class="scoring-ref-label">Per blue marlin landed (min 110&Prime; or 400 lbs)</div>
+      </div>
+      <div class="scoring-ref-item penalty">
+        <div class="scoring-ref-value">&minus;200 pts</div>
+        <div class="scoring-ref-label">Penalty for undersized fish</div>
+      </div>
+    </div>
+  </details>
+
+  <!-- LEADERBOARD -->
+  <div id="leaderboardPanel">
+    <div class="leaderboard-wrap">
+      <div class="table-scroll">
+        <table class="leaderboard" id="leaderboardTable">
+          <thead><tr id="leaderboardHead"></tr></thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="empty-icon">&#x26F5;</div>
+      <p>No results found. Try adjusting your filters.</p>
+    </div>
+  </div>
+
+  <!-- ADMIN: Enter Results -->
+  <div class="admin-panel" id="panel-enter-results">
+    <div class="admin-card">
+      <h3>Enter Tournament Results</h3>
+      <div class="form-row" style="align-items:flex-end;">
+        <div class="form-group" style="flex:2;">
+          <label>Tournament</label>
+          <select id="resultsTournament"></select>
+        </div>
+        <div><button class="btn btn-primary" id="saveResultsBtn">Save Results</button></div>
+        <span class="unsaved-indicator" id="unsavedIndicator">&#x26A0; Unsaved changes</span>
+      </div>
+      <div class="results-type-tabs" id="resultsTypeTabs">
+        <div class="results-type-tab active" data-rtype="boats">Boats (Release &amp; Gamefish)</div>
+        <div class="results-type-tab" data-rtype="lady_angler">Lady Angler</div>
+        <div class="results-type-tab" data-rtype="junior_angler">Junior Angler</div>
+      </div>
+    </div>
+    <div class="admin-card">
+      <div class="results-grid" id="resultsGrid"></div>
+    </div>
+  </div>
+
+  <!-- ADMIN: Manage Boats -->
+  <div class="admin-panel" id="panel-manage-boats">
+    <div class="admin-card">
+      <h3>Add Boat</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Boat Name</label><input type="text" id="newBoatName"></div>
+        <div class="form-group"><label>Owner</label><input type="text" id="newBoatOwner"></div>
+        <div class="form-group"><label>Captain</label><input type="text" id="newBoatCaptain"></div>
+        <div class="form-group"><label>Boat Type</label>
+          <select id="newBoatType"><option value="private">Private</option><option value="charter">Charter</option></select>
+        </div>
+        <div class="form-group"><label>Sonar</label>
+          <select id="newBoatSonar"><option value="true">Sonar</option><option value="false">Non-Sonar</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Home Port</label><input type="text" id="newBoatHomeport" placeholder="e.g. Hatteras, NC"></div>
+        <div class="form-group"><label>Website</label><input type="url" id="newBoatWebsite" placeholder="https://..."></div>
+        <div class="form-group"><label>Photo</label><input type="file" id="newBoatPhoto" accept="image/*"></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="addBoatBtn">Add Boat</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Add Individual Angler</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Angler Name</label><input type="text" id="newAnglerName"></div>
+        <div class="form-group"><label>Category</label>
+          <select id="newAnglerType">
+            <option value="lady_angler">Lady Angler</option>
+            <option value="junior_angler">Junior Angler</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Boat</label>
+          <select id="newAnglerBoat"></select>
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="addAnglerBtn">Add Angler</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>All Participants</h3>
+      <ul class="item-list" id="boatList"></ul>
+    </div>
+  </div>
+
+  <!-- ADMIN: Manage Tournaments -->
+  <div class="admin-panel" id="panel-manage-tournaments">
+    <div class="admin-card">
+      <h3>Add Tournament</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Event Name</label><input type="text" id="newTournName"></div>
+        <div class="form-group" style="max-width:100px;"><label>Event #</label><input type="number" id="newTournNum" min="1"></div>
+        <div class="form-group" style="max-width:160px;"><label>Date</label><input type="date" id="newTournDate"></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="addTournBtn">Add Tournament</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Tournaments</h3>
+      <ul class="item-list" id="tournamentList"></ul>
+    </div>
+  </div>
+
+  <!-- ADMIN: Manage Categories -->
+  <div class="admin-panel" id="panel-manage-categories">
+    <div class="admin-card">
+      <h3>Add Category</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Name</label><input type="text" id="newCatName"></div>
+        <div class="form-group"><label>Group</label>
+          <select id="newCatGroup">
+            <option value="Release">Release (cumulative)</option>
+            <option value="Gamefish">Gamefish (standalone, lbs)</option>
+            <option value="Special">Special (standalone, individual)</option>
+          </select>
+        </div>
+        <div class="form-group" style="max-width:100px;"><label>Sort Order</label><input type="number" id="newCatSort" min="1"></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="addCatBtn">Add Category</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Categories</h3>
+      <ul class="item-list" id="categoryList"></ul>
+    </div>
+  </div>
+
+  <!-- ADMIN: Import/Export -->
+  <div class="admin-panel" id="panel-import-export">
+    <div class="admin-card">
+      <h3>Export Data</h3>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Download the current dataset as a JSON file.</p>
+      <button class="btn btn-gold" id="exportBtn">Download ncbs-data.json</button>
+    </div>
+    <div class="admin-card">
+      <h3>Import Data</h3>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Upload a JSON file to replace all current data.</p>
+      <input type="file" id="importFile" accept=".json" style="margin-bottom:0.5rem;">
+      <div class="btn-row"><button class="btn btn-primary" id="importBtn">Import JSON</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Reset Data</h3>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Re-import the original seed data from the server.</p>
+      <button class="btn btn-danger" id="resetBtn">Reset to Original Data</button>
+    </div>
+  </div>
+
+</main>
+
+<!-- BOAT DETAIL MODAL -->
+<div class="modal-overlay" id="boatModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="boatModalTitle">Details</h2>
+      <button class="modal-close" onclick="closeModal('boatModal')">&times;</button>
+    </div>
+    <div class="modal-body" id="boatModalBody"></div>
+  </div>
+</div>
+
+<!-- TOURNAMENT DETAIL MODAL -->
+<div class="modal-overlay" id="tournamentModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="tournamentModalTitle">Tournament Details</h2>
+      <button class="modal-close" onclick="closeModal('tournamentModal')">&times;</button>
+    </div>
+    <div class="modal-body" id="tournamentModalBody"></div>
+  </div>
+</div>
+
+<!-- EDIT TOURNAMENT MODAL -->
+<div class="modal-overlay" id="editTournamentModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Tournament</h2>
+      <button class="modal-close" onclick="closeModal('editTournamentModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editTournId">
+      <div class="form-row">
+        <div class="form-group"><label>Event Name</label><input type="text" id="editTournName"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:100px;"><label>Event #</label><input type="number" id="editTournNum" min="1"></div>
+        <div class="form-group" style="max-width:180px;"><label>Date</label><input type="date" id="editTournDate"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="editTournStatus"><option value="upcoming">Upcoming</option><option value="completed">Completed</option></select>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:1rem;">
+        <button class="btn btn-primary" id="saveEditTournBtn">Save Changes</button>
+        <button class="btn btn-secondary" onclick="closeModal('editTournamentModal')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT ANGLER MODAL -->
+<div class="modal-overlay" id="editAnglerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Angler</h2>
+      <button class="modal-close" onclick="closeModal('editAnglerModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editAnglerId">
+      <div class="form-row">
+        <div class="form-group"><label>Angler Name</label><input type="text" id="editAnglerName"></div>
+        <div class="form-group"><label>Category</label>
+          <select id="editAnglerType">
+            <option value="lady_angler">Lady Angler</option>
+            <option value="junior_angler">Junior Angler</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Boat</label>
+          <select id="editAnglerBoat"></select>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:1rem;">
+        <button class="btn btn-primary" id="saveEditAnglerBtn">Save Changes</button>
+        <button class="btn btn-secondary" onclick="closeModal('editAnglerModal')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT BOAT MODAL -->
+<div class="modal-overlay" id="editBoatModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Edit Boat</h2>
+      <button class="modal-close" onclick="closeModal('editBoatModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editBoatId">
+      <div class="form-row">
+        <div class="form-group"><label>Boat Name</label><input type="text" id="editBoatName"></div>
+        <div class="form-group"><label>Owner</label><input type="text" id="editBoatOwner"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Captain</label><input type="text" id="editBoatCaptain"></div>
+        <div class="form-group"><label>Home Port</label><input type="text" id="editBoatHomeport"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Boat Type</label>
+          <select id="editBoatType"><option value="private">Private</option><option value="charter">Charter</option></select>
+        </div>
+        <div class="form-group"><label>Sonar</label>
+          <select id="editBoatSonar"><option value="true">Sonar</option><option value="false">Non-Sonar</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Website</label><input type="url" id="editBoatWebsite" placeholder="https://..."></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Photo</label>
+          <div id="editBoatPhotoPreview" style="margin-bottom:0.5rem;"></div>
+          <input type="file" id="editBoatPhoto" accept="image/*">
+          <button class="btn btn-secondary btn-sm" id="editBoatPhotoRemove" style="margin-top:0.4rem;display:none;">Remove Photo</button>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:1rem;">
+        <button class="btn btn-primary" id="saveEditBoatBtn">Save Changes</button>
+        <button class="btn btn-secondary" onclick="closeModal('editBoatModal')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Admin Login</h2>
+      <button class="modal-close" onclick="closeModal('loginModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="loginForm">
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Email</label>
+          <input type="email" id="loginEmail" required style="width:100%;">
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Password</label>
+          <input type="password" id="loginPassword" required style="width:100%;">
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Login</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+
+<script>
+/* ================================================================
+   NC Billfish Series Leaderboard — Client Application
+   ================================================================ */
+
+const SERIES_SLUG = 'ncbillfish';
+const API_BASE = '/api/' + SERIES_SLUG;
+let DATA = null;
+let IS_ADMIN = false;
+let AUTH_TOKEN = sessionStorage.getItem('ncbs_token');
+let currentResultsType = 'boats';
+let searchDebounceTimer = null;
+let adminInitialized = false;
+
+// ===== API WRAPPER =====
+async function api(path, options = {}) {
+  const url = path.startsWith('/') ? path : (path ? API_BASE + '/' + path : API_BASE);
+  const headers = {};
+  if (AUTH_TOKEN) headers['Authorization'] = 'Bearer ' + AUTH_TOKEN;
+  if (options.body && typeof options.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  const resp = await fetch(url, { ...options, headers: { ...headers, ...(options.headers || {}) } });
+  if (resp.status === 401) {
+    logout();
+    throw new Error('Session expired. Please log in again.');
+  }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return resp.json();
+}
+
+// ===== AUTH =====
+async function login(email, password) {
+  const data = await api('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  AUTH_TOKEN = data.token;
+  sessionStorage.setItem('ncbs_token', AUTH_TOKEN);
+  IS_ADMIN = true;
+  updateAdminUI();
+  closeModal('loginModal');
+  if (!adminInitialized) {
+    initAdminTabs();
+    initAdminHandlers();
+    initEditBoatHandlers();
+    initEditAnglerHandlers();
+    initEditTournamentHandlers();
+    adminInitialized = true;
+  }
+  showToast('Logged in!');
+}
+
+function logout() {
+  AUTH_TOKEN = null;
+  IS_ADMIN = false;
+  sessionStorage.removeItem('ncbs_token');
+  updateAdminUI();
+  document.querySelectorAll('#adminTabs li').forEach(t => t.classList.remove('active'));
+  const lbTab = document.querySelector('#adminTabs li[data-tab="leaderboard"]');
+  if (lbTab) lbTab.classList.add('active');
+  document.getElementById('leaderboardPanel').style.display = 'block';
+  document.getElementById('filterBar').style.display = 'flex';
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('visible'));
+}
+
+function updateAdminUI() {
+  document.getElementById('adminNav').classList.toggle('visible', IS_ADMIN);
+  document.getElementById('adminBadgeHeader').style.display = IS_ADMIN ? 'inline-block' : 'none';
+  document.getElementById('loginBtn').style.display = IS_ADMIN ? 'none' : 'inline-block';
+  document.getElementById('logoutBtn').style.display = IS_ADMIN ? 'inline-block' : 'none';
+}
+
+// ===== HELPERS =====
+function escHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function getBoats() { return DATA.participants.filter(p => p.participant_type === 'boat'); }
+function getIndividuals(type) { return DATA.participants.filter(p => p.participant_type === type); }
+function getBoatById(id) { return DATA.participants.find(p => p.id === id && p.participant_type === 'boat'); }
+function getParticipantName(p) { return p.boat_name || p.angler_name || 'Unknown'; }
+function getCatById(id) { return DATA.categories.find(c => c.id === id); }
+function isBoat(p) { return p.participant_type === 'boat'; }
+function isIndividual(p) { return !isBoat(p); }
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', async () => {
+  // Check existing auth token
+  if (AUTH_TOKEN) {
+    try {
+      await api('/api/auth/me');
+      IS_ADMIN = true;
+    } catch(e) {
+      AUTH_TOKEN = null;
+      IS_ADMIN = false;
+      sessionStorage.removeItem('ncbs_token');
+    }
+  }
+
+  // Wire login modal
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      await login(
+        document.getElementById('loginEmail').value.trim(),
+        document.getElementById('loginPassword').value
+      );
+    } catch(err) {
+      showToast(err.message, true);
+    }
+  });
+  document.getElementById('loginBtn').addEventListener('click', () => openModal('loginModal'));
+  document.getElementById('logoutBtn').addEventListener('click', () => { logout(); showToast('Logged out.'); });
+
+  await loadData();
+  const params = new URLSearchParams(window.location.search);
+  initUI(params);
+
+  if (IS_ADMIN) {
+    initAdminTabs();
+    initAdminHandlers();
+    initEditBoatHandlers();
+    initEditAnglerHandlers();
+    initEditTournamentHandlers();
+    adminInitialized = true;
+  }
+  updateAdminUI();
+  await renderAll();
+});
+
+// ===== DATA =====
+async function loadData() {
+  try {
+    const [series, tournaments, categories, participants, points] = await Promise.all([
+      api(''),
+      api('tournaments'),
+      api('categories'),
+      api('participants'),
+      api('points'),
+    ]);
+    DATA = { series, tournaments, categories, participants, points };
+  } catch(e) {
+    console.error('Failed to load data:', e);
+    DATA = { series: { name:'NC Billfish Series', year:2026, description:'', total_events:8, best_of:3, participation_points:50, status:'active', updated_at:new Date().toISOString() }, tournaments:[], categories:[], participants:[], points:[] };
+  }
+}
+
+async function refreshData() {
+  await loadData();
+  document.getElementById('seriesTitle').textContent = DATA.series.name;
+  document.getElementById('seriesYear').textContent = DATA.series.year;
+  document.getElementById('bestOf').textContent = DATA.series.best_of;
+  document.getElementById('totalEvents').textContent = DATA.series.total_events;
+  document.getElementById('participationPts').textContent = DATA.series.participation_points;
+  updateTimestamp();
+  populateCategoryFilter();
+  if (IS_ADMIN) {
+    document.getElementById('resultsTournament').innerHTML = DATA.tournaments.map(t =>
+      `<option value="${t.id}">T${t.event_number}: ${escHtml(t.event_name)}</option>`
+    ).join('');
+  }
+  await renderAll();
+}
+
+// ===== UI INIT =====
+function initUI(params) {
+  document.getElementById('seriesTitle').textContent = DATA.series.name;
+  document.getElementById('seriesYear').textContent = DATA.series.year;
+  document.getElementById('bestOf').textContent = DATA.series.best_of;
+  document.getElementById('totalEvents').textContent = DATA.series.total_events;
+  document.getElementById('participationPts').textContent = DATA.series.participation_points;
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = DATA.series.status.charAt(0).toUpperCase() + DATA.series.status.slice(1);
+  badge.className = 'status-badge status-' + DATA.series.status;
+  updateTimestamp();
+
+  populateCategoryFilter();
+
+  if (!initUI._bound) {
+    document.getElementById('filterCategory').addEventListener('change', onCategoryChange);
+    document.getElementById('filterGroup').addEventListener('change', () => renderAll());
+    document.getElementById('filterSearch').addEventListener('input', () => {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => renderAll(), 300);
+    });
+    initUI._bound = true;
+  }
+
+  if (params.get('category')) { const s = document.getElementById('filterCategory'); for (const o of s.options) if (o.value === params.get('category')) { s.value = o.value; break; } }
+  if (params.get('group')) document.getElementById('filterGroup').value = params.get('group');
+  if (params.get('search')) document.getElementById('filterSearch').value = params.get('search');
+  onCategoryChange();
+}
+
+function updateTimestamp() {
+  const ts = DATA.series.updated_at;
+  if (!ts) return;
+  const d = new Date(ts);
+  document.getElementById('updatedAt').textContent = 'Updated: ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+}
+
+function populateCategoryFilter() {
+  const sel = document.getElementById('filterCategory');
+  sel.innerHTML = '<option value="overall">Overall (Release Points)</option>';
+  const sorted = [...DATA.categories].sort((a,b) => a.sort_order - b.sort_order);
+  for (const cat of sorted) {
+    const label = cat.scoring_type === 'weight' ? cat.name + ' (lbs)' : cat.name;
+    sel.appendChild(new Option(label, String(cat.id)));
+  }
+}
+
+function onCategoryChange() {
+  const val = document.getElementById('filterCategory').value;
+  const gw = document.getElementById('groupFilterWrap');
+  const vi = document.getElementById('viewInfo');
+
+  if (val === 'overall') {
+    gw.style.display = 'flex';
+    vi.classList.remove('visible');
+  } else {
+    const cat = getCatById(parseInt(val));
+    if (cat && (cat.applies_to === 'sonar' || cat.applies_to === 'non_sonar')) {
+      gw.style.display = 'flex';
+      vi.textContent = 'Showing ' + cat.name.toLowerCase() + ' \u2014 release billfish points only';
+      vi.classList.add('visible');
+    } else if (cat && cat.applies_to) {
+      gw.style.display = 'none';
+      vi.textContent = 'Showing individual ' + cat.name.toLowerCase() + ' standings \u2014 same release point scoring as billfish';
+      vi.classList.add('visible');
+    } else if (cat && cat.is_standalone && cat.scoring_type === 'weight') {
+      gw.style.display = 'flex';
+      vi.textContent = 'Standalone category \u2014 weights in lbs, no participation bonus';
+      vi.classList.add('visible');
+    } else if (cat && !cat.is_standalone) {
+      gw.style.display = 'flex';
+      vi.textContent = 'Showing only ' + cat.name + ' points across tournaments';
+      vi.classList.add('visible');
+    } else {
+      gw.style.display = 'flex';
+      vi.classList.remove('visible');
+    }
+  }
+  renderAll();
+}
+
+// ===== RENDER =====
+async function renderAll() {
+  const catVal = document.getElementById('filterCategory').value;
+  const groupVal = document.getElementById('filterGroup').value;
+  const searchVal = document.getElementById('filterSearch').value.trim();
+  try {
+    const result = await api('standings?category=' + encodeURIComponent(catVal) + '&group=' + encodeURIComponent(groupVal) + '&search=' + encodeURIComponent(searchVal));
+    renderLeaderboardTable(result);
+  } catch(e) {
+    console.error('Failed to load standings:', e);
+  }
+}
+
+function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit, useParticipation, selectedCat }) {
+  const thead = document.getElementById('leaderboardHead');
+  const tbody = document.getElementById('leaderboardBody');
+  const empty = document.getElementById('emptyState');
+  const isWeight = unit === 'lbs';
+  const unitLabel = isWeight ? ' (lbs)' : '';
+
+  let hh = '<th>Rank</th>';
+  hh += isIndividualView ? '<th>Angler</th><th class="hide-mobile">Boat</th>' : '<th>Boat</th><th class="hide-mobile">Captain</th>';
+  for (const t of tournaments) {
+    hh += `<th class="tournament-col hide-mobile" data-tid="${t.id}" title="${escHtml(t.event_name)}">T${t.event_number}</th>`;
+  }
+  const bestLabel = `Best ${DATA.series.best_of}${useParticipation ? '+PP' : ''}${unitLabel}`;
+  hh += `<th style="text-align:center;" class="hide-mobile">Total${unitLabel}</th>`;
+  hh += `<th style="text-align:center;">${bestLabel}</th>`;
+  thead.innerHTML = hh;
+
+  thead.querySelectorAll('.tournament-col').forEach(th => {
+    th.addEventListener('click', () => showTournamentModal(parseInt(th.dataset.tid)));
+  });
+
+  if (standings.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  let bh = '';
+  for (const row of standings) {
+    const p = row.participant;
+    const medal = row.rank === 1 ? '<span class="medal">&#x1F947;</span>' : row.rank === 2 ? '<span class="medal">&#x1F948;</span>' : row.rank === 3 ? '<span class="medal">&#x1F949;</span>' : '';
+
+    bh += '<tr>';
+    bh += `<td class="rank-cell">${medal}${row.rank}</td>`;
+
+    if (isIndividualView) {
+      const parentBoat = p.boat_id ? getBoatById(p.boat_id) : null;
+      bh += `<td class="name-cell" data-pid="${p.id}">${escHtml(p.angler_name)}</td>`;
+      bh += `<td class="sub-cell hide-mobile">${parentBoat ? escHtml(parentBoat.boat_name) : '&mdash;'}</td>`;
+    } else {
+      const sonarLabel = p.sonar != null ? (p.sonar ? 'sonar' : 'non-sonar') : '';
+      const sb = sonarLabel ? `<span class="boat-type-badge ${sonarLabel}">${sonarLabel}</span>` : '';
+      const tb = p.boat_type ? `<span class="boat-type-badge ${p.boat_type}">${p.boat_type}</span>` : '';
+      bh += `<td class="name-cell" data-pid="${p.id}">${escHtml(p.boat_name)}${tb}${sb}</td>`;
+      bh += `<td class="sub-cell hide-mobile">${escHtml(p.captain || '')}</td>`;
+    }
+
+    for (const t of tournaments) {
+      const pts = row.tournamentPoints[String(t.id)] || 0;
+      const isCounted = row.counted[String(t.id)];
+      const cls = pts === 0 ? 'no-entry' : (isCounted ? 'counted' : 'not-counted');
+      let display = '&mdash;';
+      if (pts > 0) display = isWeight ? pts.toLocaleString() + '<span class="unit-suffix">lbs</span>' : pts.toLocaleString();
+      bh += `<td class="tournament-cell ${cls} hide-mobile">${display}</td>`;
+    }
+
+    const bestDisplay = isWeight ? row.bestOfScore.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.bestOfScore.toLocaleString();
+    const totalDisplay = isWeight ? row.totalAll.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.totalAll.toLocaleString();
+    bh += `<td class="total-cell hide-mobile">${totalDisplay}</td>`;
+    bh += `<td class="bestof-cell">${bestDisplay}</td>`;
+    bh += '</tr>';
+  }
+  tbody.innerHTML = bh;
+
+  tbody.querySelectorAll('.name-cell').forEach(td => {
+    td.addEventListener('click', () => showDetailModal(parseInt(td.dataset.pid)));
+  });
+}
+
+// ===== DETAIL MODAL (Boat or Individual) =====
+async function showDetailModal(pid) {
+  const part = DATA.participants.find(p => p.id === pid);
+  if (!part) return;
+  if (isBoat(part)) await showBoatModal(part);
+  else await showAnglerModal(part);
+}
+
+async function showBoatModal(part) {
+  const tournaments = [...DATA.tournaments].sort((a,b) => a.event_number - b.event_number);
+  const releaseCats = DATA.categories.filter(c => !c.is_standalone).sort((a,b) => a.sort_order - b.sort_order);
+  const gamefishCats = DATA.categories.filter(c => c.is_standalone && c.scoring_type === 'weight').sort((a,b) => a.sort_order - b.sort_order);
+
+  let myRow = null;
+  try {
+    const allStandings = await api('standings?category=overall&group=all&search=');
+    myRow = allStandings.standings.find(r => r.participant.id === part.id);
+  } catch(e) { console.error(e); }
+
+  document.getElementById('boatModalTitle').textContent = part.boat_name;
+  const photoSrc = part.photo ? '/uploads/' + part.photo : null;
+  const photoHtml = photoSrc ? `<img src="${photoSrc}" alt="${escHtml(part.boat_name)}" class="boat-photo">` : '<div class="big-icon">&#x1F6A2;</div>';
+  const portHtml = part.homeport ? `<p>Home Port: ${escHtml(part.homeport)}</p>` : '';
+  const webHtml = part.website ? `<p><a href="${escHtml(part.website)}" target="_blank" rel="noopener">${escHtml(part.website)}</a></p>` : '';
+  let html = `<div class="detail-header">
+    ${photoHtml}
+    <div class="detail-info">
+      <h3>${escHtml(part.boat_name)}<span class="boat-type-badge ${part.boat_type}" style="margin-left:8px;">${part.boat_type}</span>${part.sonar != null ? '<span class="boat-type-badge ' + (part.sonar ? 'sonar' : 'non-sonar') + '" style="margin-left:4px;">' + (part.sonar ? 'sonar' : 'non-sonar') + '</span>' : ''}</h3>
+      <p>Owner: ${escHtml(part.owner || 'N/A')} &bull; Captain: ${escHtml(part.captain || 'N/A')}</p>
+      ${portHtml}
+      ${webHtml}
+    </div>
+  </div>`;
+
+  if (myRow) {
+    html += `<div class="detail-stats">
+      <div class="detail-stat"><div class="stat-value">#${myRow.rank}</div><div class="stat-label">Overall Rank</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.bestOfScore.toLocaleString()}</div><div class="stat-label">Best ${DATA.series.best_of} + PP</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.totalAll.toLocaleString()}</div><div class="stat-label">Total Rel. Pts</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.tournamentsEntered}</div><div class="stat-label">Events</div></div>
+    </div>`;
+  }
+
+  html += `<div class="section-label">Release Points (counts toward Overall)</div>`;
+  html += buildDetailTable(part.id, tournaments, releaseCats, 'pts', myRow);
+
+  html += `<div class="section-label">Gamefish Weights (standalone categories)</div>`;
+  html += buildDetailTable(part.id, tournaments, gamefishCats, 'lbs', null);
+
+  const crew = DATA.participants.filter(p => p.boat_id === part.id);
+  if (crew.length > 0) {
+    html += `<div class="section-label">Individual Anglers on This Boat</div>`;
+    html += '<table><thead><tr><th>Angler</th><th>Category</th><th style="text-align:center;">Events</th><th style="text-align:center;">Total Pts</th></tr></thead><tbody>';
+    for (const c of crew) {
+      const cat = DATA.categories.find(ct => ct.applies_to === c.participant_type);
+      const pts = DATA.points.filter(p => p.participant_id === c.id);
+      const total = pts.reduce((s,p) => s + (p.points||0), 0);
+      const events = new Set(pts.map(p => p.tournament_id)).size;
+      html += `<tr><td>${escHtml(c.angler_name)}</td><td>${cat ? escHtml(cat.name) : c.participant_type}</td><td style="text-align:center;">${events}</td><td style="text-align:center;color:var(--gold);font-weight:600;">${total}</td></tr>`;
+    }
+    html += '</tbody></table>';
+  }
+
+  document.getElementById('boatModalBody').innerHTML = html;
+  openModal('boatModal');
+}
+
+async function showAnglerModal(part) {
+  const tournaments = [...DATA.tournaments].sort((a,b) => a.event_number - b.event_number);
+  const releaseCats = DATA.categories.filter(c => !c.is_standalone).sort((a,b) => a.sort_order - b.sort_order);
+  const cat = DATA.categories.find(c => c.applies_to === part.participant_type);
+  const parentBoat = part.boat_id ? getBoatById(part.boat_id) : null;
+
+  let myRow = null;
+  const catFilter = cat ? String(cat.id) : null;
+  if (catFilter) {
+    try {
+      const anglerStandings = await api('standings?category=' + catFilter + '&group=all&search=');
+      myRow = anglerStandings.standings.find(r => r.participant.id === part.id);
+    } catch(e) { console.error(e); }
+  }
+
+  document.getElementById('boatModalTitle').textContent = part.angler_name;
+
+  let html = `<div class="detail-header">
+    <div class="big-icon">&#x1F3A3;</div>
+    <div class="detail-info">
+      <h3>${escHtml(part.angler_name)}</h3>
+      <p>${cat ? cat.name : part.participant_type}${parentBoat ? ' &bull; Boat: ' + escHtml(parentBoat.boat_name) : ''}</p>
+    </div>
+  </div>`;
+
+  if (myRow) {
+    html += `<div class="detail-stats">
+      <div class="detail-stat"><div class="stat-value">#${myRow.rank}</div><div class="stat-label">${cat ? cat.name : ''} Rank</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.bestOfScore.toLocaleString()}</div><div class="stat-label">Best ${DATA.series.best_of} + PP</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.totalAll.toLocaleString()}</div><div class="stat-label">Total Rel. Pts</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.tournamentsEntered}</div><div class="stat-label">Events</div></div>
+    </div>`;
+  }
+
+  html += `<div class="section-label">Release Points</div>`;
+  html += buildDetailTable(part.id, tournaments, releaseCats, 'pts', myRow);
+
+  document.getElementById('boatModalBody').innerHTML = html;
+  openModal('boatModal');
+}
+
+function buildDetailTable(pid, tournaments, categories, unit, overallRow) {
+  const isWeight = unit === 'lbs';
+  let html = '<div style="overflow-x:auto;"><table><thead><tr><th>Tournament</th>';
+  for (const c of categories) html += `<th style="text-align:center;font-size:0.7rem;white-space:nowrap;">${escHtml(c.name)}${isWeight ? ' (lbs)' : ''}</th>`;
+  html += '<th style="text-align:center;">Total</th>';
+  if (overallRow) html += '<th style="text-align:center;">Counted</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const t of tournaments) {
+    const pts = DATA.points.filter(p => p.participant_id === pid && p.tournament_id === t.id);
+    let tournTotal = 0;
+    const isCounted = overallRow && overallRow.counted[String(t.id)];
+
+    html += `<tr${isCounted ? ' style="background:rgba(212,165,116,0.08);"' : ''}>`;
+    html += `<td style="white-space:nowrap;font-size:0.8rem;">${escHtml(t.event_name.length > 25 ? t.event_name.substring(0,25)+'...' : t.event_name)}</td>`;
+    for (const c of categories) {
+      const cp = pts.find(p => p.category_id === c.id);
+      const v = cp ? cp.points : 0;
+      tournTotal += v;
+      html += `<td style="text-align:center;color:${v ? 'var(--text)' : 'var(--gray)'};">${v || '&mdash;'}</td>`;
+    }
+    html += `<td style="text-align:center;font-weight:700;">${tournTotal || '&mdash;'}</td>`;
+    if (overallRow) html += `<td style="text-align:center;">${isCounted ? '&#x2705;' : ''}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  return html;
+}
+
+// ===== TOURNAMENT DETAIL MODAL =====
+function showTournamentModal(tid) {
+  const tourn = DATA.tournaments.find(t => t.id === tid);
+  if (!tourn) return;
+  const releaseCats = DATA.categories.filter(c => !c.is_standalone).sort((a,b) => a.sort_order - b.sort_order);
+  const gamefishCats = DATA.categories.filter(c => c.is_standalone && c.scoring_type === 'weight').sort((a,b) => a.sort_order - b.sort_order);
+  const specialCats = DATA.categories.filter(c => c.applies_to).sort((a,b) => a.sort_order - b.sort_order);
+
+  const d = new Date(tourn.event_date + 'T00:00:00');
+  document.getElementById('tournamentModalTitle').textContent = tourn.event_name;
+
+  let html = `<div class="detail-header">
+    <div class="big-icon">&#x1F3C6;</div>
+    <div class="detail-info">
+      <h3>${escHtml(tourn.event_name)}</h3>
+      <p>Event #${tourn.event_number} &bull; ${d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} &bull;
+        <span class="status-badge status-${tourn.status}">${tourn.status}</span></p>
+    </div>
+  </div>`;
+
+  const tournPts = DATA.points.filter(p => p.tournament_id === tid);
+  const boatIds = [...new Set(tournPts.filter(p => { const part = DATA.participants.find(x=>x.id===p.participant_id); return part && isBoat(part); }).map(p => p.participant_id))];
+
+  html += `<div class="section-label">Release Points</div>`;
+  html += '<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Boat</th>';
+  for (const c of releaseCats) html += `<th style="text-align:center;font-size:0.7rem;">${escHtml(c.name)}</th>`;
+  html += '<th style="text-align:center;">Total</th></tr></thead><tbody>';
+
+  const boatRows = boatIds.map(pid => {
+    const part = DATA.participants.find(p => p.id === pid);
+    const pts = tournPts.filter(p => p.participant_id === pid && releaseCats.some(c => c.id === p.category_id));
+    const total = pts.reduce((s,p) => s + (p.points||0), 0);
+    return { part, pts, total };
+  }).sort((a,b) => b.total - a.total);
+
+  boatRows.forEach((r, i) => {
+    html += `<tr><td style="text-align:center;font-weight:700;">${i+1}</td>`;
+    html += `<td style="font-weight:600;color:var(--seafoam);">${escHtml(r.part ? r.part.boat_name : 'Unknown')}</td>`;
+    for (const c of releaseCats) {
+      const cp = r.pts.find(p => p.category_id === c.id);
+      html += `<td style="text-align:center;">${cp ? cp.points : '&mdash;'}</td>`;
+    }
+    html += `<td style="text-align:center;font-weight:700;color:var(--gold);">${r.total}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  if (gamefishCats.length > 0) {
+    html += `<div class="section-label">Gamefish Weights</div>`;
+    html += '<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Boat</th>';
+    for (const c of gamefishCats) html += `<th style="text-align:center;font-size:0.7rem;">${escHtml(c.name)} (lbs)</th>`;
+    html += '</tr></thead><tbody>';
+
+    const gfBoatIds = [...new Set(tournPts.filter(p => gamefishCats.some(c => c.id === p.category_id)).map(p => p.participant_id))];
+    const gfRows = gfBoatIds.map(pid => {
+      const part = DATA.participants.find(p => p.id === pid);
+      const pts = tournPts.filter(p => p.participant_id === pid && gamefishCats.some(c => c.id === p.category_id));
+      return { part, pts };
+    });
+
+    gfRows.forEach((r, i) => {
+      html += `<tr><td style="text-align:center;">${i+1}</td>`;
+      html += `<td style="font-weight:600;color:var(--seafoam);">${escHtml(r.part ? (r.part.boat_name || r.part.angler_name) : 'Unknown')}</td>`;
+      for (const c of gamefishCats) {
+        const cp = r.pts.find(p => p.category_id === c.id);
+        html += `<td style="text-align:center;">${cp ? cp.points + ' lbs' : '&mdash;'}</td>`;
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  for (const sc of specialCats) {
+    const individuals = getIndividuals(sc.applies_to);
+    if (individuals.length === 0) continue;
+    const indWithPts = individuals.map(ind => {
+      const pts = tournPts.filter(p => p.participant_id === ind.id && releaseCats.some(c => c.id === p.category_id));
+      const total = pts.reduce((s,p) => s + (p.points||0), 0);
+      const boat = ind.boat_id ? getBoatById(ind.boat_id) : null;
+      return { part: ind, boat, pts, total };
+    }).filter(r => r.total > 0).sort((a,b) => b.total - a.total);
+
+    if (indWithPts.length === 0) continue;
+    html += `<div class="section-label">${escHtml(sc.name)}</div>`;
+    html += '<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Angler</th><th>Boat</th>';
+    for (const c of releaseCats) html += `<th style="text-align:center;font-size:0.7rem;">${escHtml(c.name)}</th>`;
+    html += '<th style="text-align:center;">Total</th></tr></thead><tbody>';
+
+    indWithPts.forEach((r, i) => {
+      html += `<tr><td style="text-align:center;font-weight:700;">${i+1}</td>`;
+      html += `<td style="color:var(--seafoam);">${escHtml(r.part ? r.part.angler_name : 'Unknown')}</td>`;
+      html += `<td style="color:var(--gray-light);">${r.boat ? escHtml(r.boat.boat_name) : '&mdash;'}</td>`;
+      for (const c of releaseCats) {
+        const cp = r.pts.find(p => p.category_id === c.id);
+        html += `<td style="text-align:center;">${cp ? cp.points : '&mdash;'}</td>`;
+      }
+      html += `<td style="text-align:center;font-weight:700;color:var(--gold);">${r.total}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  if (boatRows.length === 0) {
+    html += '<div class="empty-state"><div class="empty-icon">&#x1F4CB;</div><p>No results recorded yet.</p></div>';
+  }
+
+  document.getElementById('tournamentModalBody').innerHTML = html;
+  openModal('tournamentModal');
+}
+
+// ===== MODAL HELPERS =====
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); });
+
+// ===== ADMIN: TABS =====
+function initAdminTabs() {
+  document.querySelectorAll('#adminTabs li').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('#adminTabs li').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const name = tab.dataset.tab;
+      document.getElementById('leaderboardPanel').style.display = name === 'leaderboard' ? 'block' : 'none';
+      document.getElementById('filterBar').style.display = name === 'leaderboard' ? 'flex' : 'none';
+      document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('visible'));
+      const panel = document.getElementById('panel-' + name);
+      if (panel) {
+        panel.classList.add('visible');
+        if (name === 'enter-results') renderResultsGrid();
+        if (name === 'manage-boats') { renderBoatList(); populateAnglerBoatDropdown(); }
+        if (name === 'manage-tournaments') renderTournamentList();
+        if (name === 'manage-categories') renderCategoryList();
+      }
+    });
+  });
+}
+
+// ===== ADMIN: EVENT HANDLERS =====
+function initAdminHandlers() {
+  document.getElementById('resultsTournament').innerHTML = DATA.tournaments.map(t => `<option value="${t.id}">T${t.event_number}: ${escHtml(t.event_name)}</option>`).join('');
+  document.getElementById('resultsTournament').addEventListener('change', renderResultsGrid);
+  document.getElementById('saveResultsBtn').addEventListener('click', saveResults);
+
+  document.querySelectorAll('.results-type-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.results-type-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentResultsType = tab.dataset.rtype;
+      renderResultsGrid();
+    });
+  });
+
+  document.getElementById('addBoatBtn').addEventListener('click', addBoat);
+  document.getElementById('addAnglerBtn').addEventListener('click', addAngler);
+  document.getElementById('addTournBtn').addEventListener('click', addTournament);
+  document.getElementById('addCatBtn').addEventListener('click', addCategory);
+  document.getElementById('exportBtn').addEventListener('click', exportJSON);
+  document.getElementById('importBtn').addEventListener('click', importJSON);
+  document.getElementById('resetBtn').addEventListener('click', resetData);
+}
+
+// ===== ADMIN: ENTER RESULTS =====
+function renderResultsGrid() {
+  const tid = parseInt(document.getElementById('resultsTournament').value);
+  if (!tid) return;
+
+  let participants, categories;
+
+  if (currentResultsType === 'boats') {
+    participants = getBoats().sort((a,b) => (a.boat_name||'').localeCompare(b.boat_name||''));
+    categories = DATA.categories.filter(c => !c.applies_to).sort((a,b) => a.sort_order - b.sort_order);
+  } else {
+    participants = getIndividuals(currentResultsType).sort((a,b) => (a.angler_name||'').localeCompare(b.angler_name||''));
+    categories = DATA.categories.filter(c => !c.is_standalone).sort((a,b) => a.sort_order - b.sort_order);
+  }
+
+  if (participants.length === 0 || categories.length === 0) {
+    document.getElementById('resultsGrid').innerHTML = '<div class="empty-state"><p>No participants or categories for this selection.</p></div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Name</th>';
+  for (const c of categories) {
+    const unitLabel = c.scoring_type === 'weight' ? ' (lbs)' : '';
+    html += `<th style="text-align:center;font-size:0.7rem;white-space:nowrap;" title="${escHtml(c.name)}">${escHtml(c.name.length > 14 ? c.name.substring(0,12)+'..' : c.name)}${unitLabel}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  for (const p of participants) {
+    const label = p.boat_name || p.angler_name;
+    const sublabel = p.participant_type === 'boat' ? (p.captain || '') : (p.boat_id ? (getBoatById(p.boat_id)||{}).boat_name || '' : '');
+
+    html += `<tr><td class="row-label">${escHtml(label)}${sublabel ? '<span class="row-sublabel">' + escHtml(sublabel) + '</span>' : ''}</td>`;
+    for (const c of categories) {
+      const existing = DATA.points.find(pt => pt.tournament_id === tid && pt.participant_id === p.id && pt.category_id === c.id);
+      html += `<td><input type="number" min="0" step="any" data-pid="${p.id}" data-cid="${c.id}" value="${existing ? existing.points : ''}" placeholder="0"></td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('resultsGrid').innerHTML = html;
+
+  document.getElementById('resultsGrid').querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', () => document.getElementById('unsavedIndicator').classList.add('show'));
+  });
+}
+
+async function saveResults() {
+  const tid = parseInt(document.getElementById('resultsTournament').value);
+  if (!tid) return;
+  const inputs = document.getElementById('resultsGrid').querySelectorAll('input[type="number"]');
+
+  const pointEntries = [];
+  inputs.forEach(inp => {
+    const pid = parseInt(inp.dataset.pid);
+    const cid = parseInt(inp.dataset.cid);
+    const val = parseFloat(inp.value) || 0;
+    pointEntries.push({ tournament_id: tid, participant_id: pid, category_id: cid, points: val });
+  });
+
+  try {
+    await api('points', { method: 'POST', body: JSON.stringify({ points: pointEntries }) });
+
+    const tourn = DATA.tournaments.find(t => t.id === tid);
+    if (tourn && tourn.status === 'upcoming') {
+      await api('tournaments/' + tid, { method: 'PUT', body: JSON.stringify({ status: 'completed' }) });
+    }
+
+    document.getElementById('unsavedIndicator').classList.remove('show');
+    await refreshData();
+    showToast('Results saved!');
+  } catch(e) {
+    showToast('Error saving results: ' + e.message, true);
+  }
+}
+
+// ===== ADMIN: MANAGE BOATS =====
+function populateAnglerBoatDropdown() {
+  const sel = document.getElementById('newAnglerBoat');
+  sel.innerHTML = getBoats().map(b => `<option value="${b.id}">${escHtml(b.boat_name)}</option>`).join('');
+}
+
+function renderBoatList() {
+  const boats = getBoats().sort((a,b) => (a.boat_name||'').localeCompare(b.boat_name||''));
+  const individuals = DATA.participants.filter(p => !isBoat(p)).sort((a,b) => (a.angler_name||'').localeCompare(b.angler_name||''));
+
+  let html = '';
+
+  for (const p of boats) {
+    const crew = DATA.participants.filter(c => c.boat_id === p.id);
+    const crewInfo = crew.length > 0 ? ' &bull; Crew: ' + crew.map(c => escHtml(c.angler_name)).join(', ') : '';
+    const sonarLabel = p.sonar ? 'sonar' : 'non-sonar';
+    html += `<li>
+      <div class="item-info">
+        <div class="item-name">${escHtml(p.boat_name)} <span class="boat-type-badge ${p.boat_type}">${p.boat_type}</span> <span class="boat-type-badge ${sonarLabel}">${sonarLabel}</span></div>
+        <div class="item-meta">${p.owner ? 'Owner: ' + escHtml(p.owner) + ' &bull; ' : ''}Captain: ${escHtml(p.captain || 'N/A')}${p.homeport ? ' &bull; ' + escHtml(p.homeport) : ''}${crewInfo}</div>
+      </div>
+      <div style="display:flex;gap:0.4rem;">
+        <button class="btn btn-secondary btn-sm" onclick="openEditBoat(${p.id})">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteParticipant(${p.id})">Delete</button>
+      </div>
+    </li>`;
+  }
+
+  if (individuals.length > 0) {
+    html += `<li style="border:none;padding-top:1rem;"><div class="section-label" style="margin:0;">Individual Anglers</div></li>`;
+    for (const p of individuals) {
+      const boat = p.boat_id ? getBoatById(p.boat_id) : null;
+      const typeLabel = p.participant_type.replace('_',' ');
+      html += `<li>
+        <div class="item-info">
+          <div class="item-name">${escHtml(p.angler_name)} <span style="font-size:0.75rem;color:var(--gray);">(${typeLabel})</span></div>
+          <div class="item-meta">Boat: ${boat ? escHtml(boat.boat_name) : 'None'}</div>
+        </div>
+        <div style="display:flex;gap:0.4rem;">
+        <button class="btn btn-secondary btn-sm" onclick="openEditAngler(${p.id})">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteParticipant(${p.id})">Delete</button>
+      </div>
+      </li>`;
+    }
+  }
+
+  document.getElementById('boatList').innerHTML = html;
+}
+
+async function addBoat() {
+  const name = document.getElementById('newBoatName').value.trim();
+  const boatOwner = document.getElementById('newBoatOwner').value.trim() || null;
+  const captain = document.getElementById('newBoatCaptain').value.trim();
+  const btype = document.getElementById('newBoatType').value;
+  const sonar = document.getElementById('newBoatSonar').value === 'true';
+  const homeport = document.getElementById('newBoatHomeport').value.trim() || null;
+  const website = document.getElementById('newBoatWebsite').value.trim() || null;
+  if (!name) { showToast('Enter a boat name.', true); return; }
+
+  try {
+    let photoFilename = null;
+    const photoFile = document.getElementById('newBoatPhoto').files[0];
+    if (photoFile) {
+      const formData = new FormData();
+      formData.append('file', photoFile);
+      const uploadResult = await api('upload', { method: 'POST', body: formData });
+      photoFilename = uploadResult.filename;
+    }
+
+    await api('participants', {
+      method: 'POST',
+      body: JSON.stringify({
+        boat_name: name, captain: captain || null, owner: boatOwner,
+        participant_type: 'boat', boat_type: btype, sonar: sonar,
+        homeport: homeport, website: website, photo: photoFilename,
+      }),
+    });
+
+    document.getElementById('newBoatName').value = '';
+    document.getElementById('newBoatOwner').value = '';
+    document.getElementById('newBoatCaptain').value = '';
+    document.getElementById('newBoatHomeport').value = '';
+    document.getElementById('newBoatWebsite').value = '';
+    document.getElementById('newBoatPhoto').value = '';
+    await refreshData();
+    renderBoatList();
+    populateAnglerBoatDropdown();
+    showToast('Boat added!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+async function addAngler() {
+  const name = document.getElementById('newAnglerName').value.trim();
+  const atype = document.getElementById('newAnglerType').value;
+  const boatId = parseInt(document.getElementById('newAnglerBoat').value);
+  if (!name) { showToast('Enter an angler name.', true); return; }
+  if (!boatId) { showToast('Select a boat.', true); return; }
+
+  try {
+    await api('participants', {
+      method: 'POST',
+      body: JSON.stringify({
+        angler_name: name, participant_type: atype, boat_id: boatId,
+      }),
+    });
+    document.getElementById('newAnglerName').value = '';
+    await refreshData();
+    renderBoatList();
+    showToast('Angler added!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+window.deleteParticipant = async function(id) {
+  const p = DATA.participants.find(x => x.id === id);
+  const name = p ? getParticipantName(p) : 'this participant';
+  if (!confirm(`Delete ${name} and all their points?`)) return;
+
+  try {
+    await api('participants/' + id, { method: 'DELETE' });
+    await refreshData();
+    renderBoatList();
+    populateAnglerBoatDropdown();
+    showToast('Deleted.');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
+// ===== ADMIN: EDIT BOAT =====
+window.openEditBoat = function(id) {
+  const p = DATA.participants.find(x => x.id === id);
+  if (!p || !isBoat(p)) return;
+  document.getElementById('editBoatId').value = id;
+  document.getElementById('editBoatName').value = p.boat_name || '';
+  document.getElementById('editBoatOwner').value = p.owner || '';
+  document.getElementById('editBoatCaptain').value = p.captain || '';
+  document.getElementById('editBoatHomeport').value = p.homeport || '';
+  document.getElementById('editBoatType').value = p.boat_type || 'private';
+  document.getElementById('editBoatSonar').value = p.sonar ? 'true' : 'false';
+  document.getElementById('editBoatWebsite').value = p.website || '';
+  const preview = document.getElementById('editBoatPhotoPreview');
+  const removeBtn = document.getElementById('editBoatPhotoRemove');
+  if (p.photo) {
+    preview.innerHTML = `<img src="/uploads/${p.photo}" style="width:80px;height:80px;object-fit:cover;border-radius:var(--radius);border:1px solid var(--border);">`;
+    removeBtn.style.display = 'inline-block';
+  } else {
+    preview.innerHTML = '<span style="color:var(--gray);font-size:0.85rem;">No photo</span>';
+    removeBtn.style.display = 'none';
+  }
+  document.getElementById('editBoatPhoto').value = '';
+  openModal('editBoatModal');
+};
+
+function initEditBoatHandlers() {
+  document.getElementById('editBoatPhotoRemove').addEventListener('click', () => {
+    document.getElementById('editBoatPhotoPreview').innerHTML = '<span style="color:var(--gray);font-size:0.85rem;">No photo</span>';
+    document.getElementById('editBoatPhotoRemove').style.display = 'none';
+    document.getElementById('editBoatPhotoRemove').dataset.cleared = 'true';
+  });
+
+  document.getElementById('saveEditBoatBtn').addEventListener('click', async () => {
+    const id = parseInt(document.getElementById('editBoatId').value);
+    const name = document.getElementById('editBoatName').value.trim();
+    if (!name) { showToast('Boat name is required.', true); return; }
+
+    try {
+      let photoFilename = undefined;
+      const photoFile = document.getElementById('editBoatPhoto').files[0];
+      if (photoFile) {
+        const formData = new FormData();
+        formData.append('file', photoFile);
+        const uploadResult = await api('upload', { method: 'POST', body: formData });
+        photoFilename = uploadResult.filename;
+      } else if (document.getElementById('editBoatPhotoRemove').dataset.cleared === 'true') {
+        photoFilename = null;
+      }
+
+      const body = {
+        boat_name: name,
+        owner: document.getElementById('editBoatOwner').value.trim() || null,
+        captain: document.getElementById('editBoatCaptain').value.trim() || null,
+        homeport: document.getElementById('editBoatHomeport').value.trim() || null,
+        boat_type: document.getElementById('editBoatType').value,
+        sonar: document.getElementById('editBoatSonar').value === 'true',
+        website: document.getElementById('editBoatWebsite').value.trim() || null,
+      };
+      if (photoFilename !== undefined) body.photo = photoFilename;
+
+      await api('participants/' + id, { method: 'PUT', body: JSON.stringify(body) });
+      document.getElementById('editBoatPhotoRemove').dataset.cleared = '';
+      closeModal('editBoatModal');
+      await refreshData();
+      renderBoatList();
+      populateAnglerBoatDropdown();
+      showToast('Boat updated!');
+    } catch(e) {
+      showToast('Error: ' + e.message, true);
+    }
+  });
+}
+
+// ===== ADMIN: EDIT ANGLER =====
+window.openEditAngler = function(id) {
+  const p = DATA.participants.find(x => x.id === id);
+  if (!p || isBoat(p)) return;
+  document.getElementById('editAnglerId').value = id;
+  document.getElementById('editAnglerName').value = p.angler_name || '';
+  document.getElementById('editAnglerType').value = p.participant_type;
+  const sel = document.getElementById('editAnglerBoat');
+  sel.innerHTML = '<option value="">None</option>' + getBoats().map(b => `<option value="${b.id}">${escHtml(b.boat_name)}</option>`).join('');
+  sel.value = p.boat_id || '';
+  openModal('editAnglerModal');
+};
+
+function initEditAnglerHandlers() {
+  document.getElementById('saveEditAnglerBtn').addEventListener('click', async () => {
+    const id = parseInt(document.getElementById('editAnglerId').value);
+    const name = document.getElementById('editAnglerName').value.trim();
+    if (!name) { showToast('Angler name is required.', true); return; }
+
+    try {
+      await api('participants/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          angler_name: name,
+          participant_type: document.getElementById('editAnglerType').value,
+          boat_id: parseInt(document.getElementById('editAnglerBoat').value) || null,
+        }),
+      });
+      closeModal('editAnglerModal');
+      await refreshData();
+      renderBoatList();
+      showToast('Angler updated!');
+    } catch(e) {
+      showToast('Error: ' + e.message, true);
+    }
+  });
+}
+
+// ===== ADMIN: MANAGE TOURNAMENTS =====
+function renderTournamentList() {
+  const sorted = [...DATA.tournaments].sort((a,b) => a.event_number - b.event_number);
+  document.getElementById('tournamentList').innerHTML = sorted.map(t => `
+    <li>
+      <div class="item-info">
+        <div class="item-name">T${t.event_number}: ${escHtml(t.event_name)}</div>
+        <div class="item-meta">${t.event_date} &bull; <span class="status-badge status-${t.status}">${t.status}</span></div>
+      </div>
+      <div style="display:flex;gap:0.4rem;">
+        <button class="btn btn-secondary btn-sm" onclick="openEditTournament(${t.id})">Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleTournamentStatus(${t.id})">${t.status==='completed'?'Set Upcoming':'Set Completed'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTournament(${t.id})">Delete</button>
+      </div>
+    </li>`).join('');
+}
+
+async function addTournament() {
+  const name = document.getElementById('newTournName').value.trim();
+  const num = parseInt(document.getElementById('newTournNum').value);
+  const date = document.getElementById('newTournDate').value;
+  if (!name || !num) { showToast('Fill in name and event number.', true); return; }
+
+  try {
+    await api('tournaments', {
+      method: 'POST',
+      body: JSON.stringify({ event_name: name, event_number: num, event_date: date || null }),
+    });
+    document.getElementById('newTournName').value = '';
+    document.getElementById('newTournNum').value = '';
+    document.getElementById('newTournDate').value = '';
+    await refreshData();
+    renderTournamentList();
+    showToast('Tournament added!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+window.toggleTournamentStatus = async function(id) {
+  const t = DATA.tournaments.find(x => x.id === id);
+  if (!t) return;
+  try {
+    await api('tournaments/' + id, {
+      method: 'PUT',
+      body: JSON.stringify({ status: t.status === 'completed' ? 'upcoming' : 'completed' }),
+    });
+    await refreshData();
+    renderTournamentList();
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
+window.deleteTournament = async function(id) {
+  if (!confirm('Delete this tournament and all results?')) return;
+  try {
+    await api('tournaments/' + id, { method: 'DELETE' });
+    await refreshData();
+    renderTournamentList();
+    showToast('Tournament deleted.');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
+// ===== ADMIN: EDIT TOURNAMENT =====
+window.openEditTournament = function(id) {
+  const t = DATA.tournaments.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('editTournId').value = id;
+  document.getElementById('editTournName').value = t.event_name || '';
+  document.getElementById('editTournNum').value = t.event_number || '';
+  document.getElementById('editTournDate').value = t.event_date || '';
+  document.getElementById('editTournStatus').value = t.status || 'upcoming';
+  openModal('editTournamentModal');
+};
+
+function initEditTournamentHandlers() {
+  document.getElementById('saveEditTournBtn').addEventListener('click', async () => {
+    const id = parseInt(document.getElementById('editTournId').value);
+    const name = document.getElementById('editTournName').value.trim();
+    if (!name) { showToast('Event name is required.', true); return; }
+
+    try {
+      await api('tournaments/' + id, {
+        method: 'PUT',
+        body: JSON.stringify({
+          event_name: name,
+          event_number: parseInt(document.getElementById('editTournNum').value) || null,
+          event_date: document.getElementById('editTournDate').value || null,
+          status: document.getElementById('editTournStatus').value,
+        }),
+      });
+      closeModal('editTournamentModal');
+      await refreshData();
+      renderTournamentList();
+      showToast('Tournament updated!');
+    } catch(e) {
+      showToast('Error: ' + e.message, true);
+    }
+  });
+}
+
+// ===== ADMIN: MANAGE CATEGORIES =====
+function renderCategoryList() {
+  const sorted = [...DATA.categories].sort((a,b) => a.sort_order - b.sort_order);
+  document.getElementById('categoryList').innerHTML = sorted.map(c => {
+    const tags = [];
+    if (c.is_standalone) tags.push('standalone');
+    if (c.scoring_type === 'weight') tags.push('lbs');
+    if (c.applies_to) tags.push(c.applies_to.replace('_',' '));
+    return `<li>
+      <div class="item-info">
+        <div class="item-name">${escHtml(c.name)}</div>
+        <div class="item-meta">Group: ${c.category_group} &bull; ${tags.join(', ') || 'cumulative'} &bull; Sort: ${c.sort_order}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deleteCategory(${c.id})">Delete</button>
+    </li>`;
+  }).join('');
+}
+
+async function addCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  const group = document.getElementById('newCatGroup').value;
+  const sort = parseInt(document.getElementById('newCatSort').value) || (DATA.categories.length + 1);
+  if (!name) { showToast('Enter a category name.', true); return; }
+
+  const body = { name, category_group: group, scoring_type: 'points', is_standalone: false, unit: 'pts', sort_order: sort };
+  if (group === 'Gamefish') { body.is_standalone = true; body.scoring_type = 'weight'; body.unit = 'lbs'; }
+  else if (group === 'Special') { body.is_standalone = true; body.applies_to = name.toLowerCase().replace(/\s+/g, '_'); }
+
+  try {
+    await api('categories', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('newCatName').value = '';
+    document.getElementById('newCatSort').value = '';
+    await refreshData();
+    renderCategoryList();
+    showToast('Category added!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+window.deleteCategory = async function(id) {
+  if (!confirm('Delete this category and all associated points?')) return;
+  try {
+    await api('categories/' + id, { method: 'DELETE' });
+    await refreshData();
+    renderCategoryList();
+    showToast('Category deleted.');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
+// ===== IMPORT / EXPORT =====
+async function exportJSON() {
+  try {
+    const data = await api('export', { method: 'POST' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'ncbs-data.json'; a.click();
+    URL.revokeObjectURL(url);
+    showToast('JSON exported!');
+  } catch(e) {
+    showToast('Export failed: ' + e.message, true);
+  }
+}
+
+async function importJSON() {
+  const file = document.getElementById('importFile').files[0];
+  if (!file) { showToast('Select a JSON file.', true); return; }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.series || !imported.tournaments || !imported.categories || !imported.participants || !imported.points) throw new Error('Invalid structure');
+      await api('import', { method: 'POST', body: JSON.stringify(imported) });
+      await refreshData();
+      showToast('Data imported!');
+    } catch(err) {
+      showToast('Import failed: ' + err.message, true);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function resetData() {
+  if (!confirm('Reset all data from the server seed file?')) return;
+  try {
+    await api('import', { method: 'POST' });
+    await refreshData();
+    showToast('Data reset!');
+  } catch(e) {
+    showToast('Reset failed: ' + e.message, true);
+  }
+}
+
+// ===== TOAST =====
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
