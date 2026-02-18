@@ -835,10 +835,10 @@ def download_template(slug: str, tournament_id: int, user: dict = Depends(get_cu
         lady_anglers = [p for p in participants if p["participant_type"] == "lady_angler"]
         junior_anglers = [p for p in participants if p["participant_type"] == "junior_angler"]
 
-        # Boat categories: non-standalone, non-individual (no applies_to like lady_angler/junior_angler)
-        boat_cats = [c for c in categories if not c["is_standalone"] and c["applies_to"] not in ("lady_angler", "junior_angler")]
-        lady_cats = [c for c in categories if c["applies_to"] == "lady_angler"]
-        junior_cats = [c for c in categories if c["applies_to"] == "junior_angler"]
+        # Match frontend logic: boats get categories with no applies_to, individuals get non-standalone
+        boat_cats = [c for c in categories if not c.get("applies_to")]
+        lady_cats = [c for c in categories if not c["is_standalone"]]
+        junior_cats = [c for c in categories if not c["is_standalone"]]
 
         wb = Workbook()
 
