@@ -188,6 +188,7 @@ def init_database():
     for col_sql in [
         "ALTER TABLE series ADD COLUMN primary_color TEXT DEFAULT '#0e8a7d'",
         "ALTER TABLE series ADD COLUMN accent_color TEXT DEFAULT '#b07d3a'",
+        "ALTER TABLE series ADD COLUMN is_single_tournament INTEGER DEFAULT 0",
     ]:
         try:
             c.execute(col_sql)
@@ -224,6 +225,7 @@ class SeriesUpdate(BaseModel):
     status: Optional[str] = None
     primary_color: Optional[str] = None
     accent_color: Optional[str] = None
+    is_single_tournament: Optional[bool] = None
 
 class SeriesCreate(BaseModel):
     slug: str
@@ -233,8 +235,10 @@ class SeriesCreate(BaseModel):
     total_events: Optional[int] = None
     best_of: Optional[int] = 3
     participation_points: Optional[float] = 50
+    logo_path: Optional[str] = None
     primary_color: Optional[str] = "#0e8a7d"
     accent_color: Optional[str] = "#b07d3a"
+    is_single_tournament: Optional[bool] = False
 
 class AdminUserCreate(BaseModel):
     email: str
@@ -393,6 +397,10 @@ def compute_standings(
     ]
     tourn_ids = [t["id"] for t in tournaments]
 
+    if series.get("is_single_tournament"):
+        best_of = len(tourn_ids) or 999
+        part_pts = 0
+
     categories = [
         dict(r) for r in conn.execute(
             "SELECT * FROM categories WHERE series_id = ? ORDER BY sort_order", (series_id,)
@@ -488,6 +496,7 @@ def compute_standings(
         candidates = filtered
 
     # Build standings
+    is_single = bool(series.get("is_single_tournament"))
     standings = []
     for part in candidates:
         row = {
@@ -499,6 +508,8 @@ def compute_standings(
             "counted": {},
             "participationBonus": 0,
         }
+        if is_single:
+            row["categoryPoints"] = {}
 
         for tid in tourn_ids:
             pts = [
@@ -512,6 +523,12 @@ def compute_standings(
             if total > 0:
                 row["tournamentsEntered"] += 1
             row["totalAll"] += total
+
+            # Per-category breakdowns for single-tournament mode
+            if is_single:
+                for p in pts:
+                    cid = str(p["category_id"])
+                    row["categoryPoints"][cid] = row["categoryPoints"].get(cid, 0) + p["points"]
 
         # Best-of-N
         scored = [
@@ -541,7 +558,7 @@ def compute_standings(
         else:
             s["rank"] = i + 1
 
-    return {
+    result = {
         "standings": standings,
         "tournaments": tournaments,
         "isIndividualView": is_individual_view,
@@ -549,6 +566,11 @@ def compute_standings(
         "useParticipation": use_participation,
         "selectedCat": selected_cat,
     }
+    if is_single:
+        result["scoringCategories"] = [
+            c for c in categories if c["id"] in relevant_cat_ids
+        ]
+    return result
 
 
 # ============================================================================
@@ -594,9 +616,10 @@ def admin_create_series(data: SeriesCreate, user: dict = Depends(require_super_a
         if existing:
             raise HTTPException(status_code=409, detail="Series slug already exists")
         conn.execute(
-            "INSERT INTO series (slug, name, year, description, total_events, best_of, participation_points, primary_color, accent_color, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+            "INSERT INTO series (slug, name, year, description, total_events, best_of, participation_points, logo_path, primary_color, accent_color, is_single_tournament, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
             (data.slug, data.name, data.year, data.description, data.total_events,
-             data.best_of, data.participation_points, data.primary_color, data.accent_color),
+             data.best_of, data.participation_points, data.logo_path, data.primary_color, data.accent_color,
+             1 if data.is_single_tournament else 0),
         )
         conn.commit()
         return dict(conn.execute("SELECT * FROM series WHERE slug = ?", (data.slug,)).fetchone())
@@ -618,6 +641,19 @@ def admin_delete_series(slug: str, user: dict = Depends(require_super_admin)):
         conn.execute("DELETE FROM series WHERE id = ?", (sid,))
         conn.commit()
         return {"deleted": True}
+
+
+@app.post("/api/admin/upload-logo")
+async def admin_upload_logo(file: UploadFile = File(...), user: dict = Depends(require_super_admin)):
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+        raise HTTPException(status_code=400, detail="Only image files allowed")
+    safe_name = f"logo_{secrets.token_hex(8)}{ext}"
+    path = os.path.join(UPLOAD_DIR, safe_name)
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    return {"filename": safe_name}
 
 
 @app.get("/api/admin/users")
@@ -831,6 +867,8 @@ def update_series(slug: str, data: SeriesUpdate, user: dict = Depends(get_curren
         if user["role"] != "super_admin" and user["series_id"] != s["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
         updates = {k: v for k, v in data.model_dump().items() if v is not None}
+        if "is_single_tournament" in updates:
+            updates["is_single_tournament"] = 1 if updates["is_single_tournament"] else 0
         if not updates:
             return dict(s)
         updates["updated_at"] = datetime.utcnow().isoformat()

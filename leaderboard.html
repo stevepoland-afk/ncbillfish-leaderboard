@@ -358,8 +358,8 @@ body.kiosk-mode .header-right { display: none !important; }
       <img src="" alt="Series Logo" class="logo-img" id="seriesLogo">
       <div>
         <div class="series-title" id="seriesTitle">NC Billfish Series</div>
-        <div class="series-subtitle">
-          <span id="seriesYear">2026</span> &mdash; Best <span id="bestOf">3</span> of <span id="totalEvents">8</span> tournaments &bull; <span id="participationPts">50</span> participation pts per event
+        <div class="series-subtitle" id="seriesSubtitle">
+          <span id="seriesYear">2026</span> &mdash; <span id="subtitleDetail">Best <span id="bestOf">3</span> of <span id="totalEvents">8</span> tournaments &bull; <span id="participationPts">50</span> participation pts per event</span>
           <span class="status-badge status-active" id="statusBadge">Active</span>
         </div>
       </div>
@@ -612,7 +612,27 @@ body.kiosk-mode .header-right { display: none !important; }
         <div class="form-group" style="max-width:120px;"><label>Primary Color</label><input type="color" id="saPrimaryColor" value="#0e8a7d"></div>
         <div class="form-group" style="max-width:120px;"><label>Accent Color</label><input type="color" id="saAccentColor" value="#b07d3a"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label>Logo</label><input type="file" id="saLogo" accept="image/*"></div>
+      </div>
       <div class="btn-row"><button class="btn btn-primary" id="saCreateSeriesBtn">Create Series</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Create Tournament Leaderboard</h3>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Standalone leaderboard for a single tournament — raw totals only, no best-of-N or participation points.</p>
+      <div class="form-row">
+        <div class="form-group"><label>Slug (URL-safe)</label><input type="text" id="saTournSlug" placeholder="e.g. cape-classic"></div>
+        <div class="form-group"><label>Name</label><input type="text" id="saTournName" placeholder="e.g. Cape Hatteras Classic 2026"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:100px;"><label>Year</label><input type="number" id="saTournYear" value="2026"></div>
+        <div class="form-group" style="max-width:120px;"><label>Primary Color</label><input type="color" id="saTournPrimaryColor" value="#0e8a7d"></div>
+        <div class="form-group" style="max-width:120px;"><label>Accent Color</label><input type="color" id="saTournAccentColor" value="#b07d3a"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Logo</label><input type="file" id="saTournLogo" accept="image/*"></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="saCreateTournBtn">Create Tournament Leaderboard</button></div>
     </div>
     <div class="admin-card">
       <h3>Create Admin User</h3>
@@ -995,9 +1015,11 @@ async function refreshData() {
   applySeriesBranding(DATA.series);
   document.getElementById('seriesTitle').textContent = DATA.series.name;
   document.getElementById('seriesYear').textContent = DATA.series.year;
-  document.getElementById('bestOf').textContent = DATA.series.best_of;
-  document.getElementById('totalEvents').textContent = DATA.series.total_events;
-  document.getElementById('participationPts').textContent = DATA.series.participation_points;
+  if (DATA.series.is_single_tournament) {
+    document.getElementById('subtitleDetail').textContent = 'Single Tournament';
+  } else {
+    document.getElementById('subtitleDetail').innerHTML = 'Best <span id="bestOf">' + DATA.series.best_of + '</span> of <span id="totalEvents">' + DATA.series.total_events + '</span> tournaments &bull; <span id="participationPts">' + DATA.series.participation_points + '</span> participation pts per event';
+  }
   updateTimestamp();
   populateCategoryFilter();
   renderScoringRef();
@@ -1054,9 +1076,11 @@ function initUI(params) {
   applySeriesBranding(DATA.series);
   document.getElementById('seriesTitle').textContent = DATA.series.name;
   document.getElementById('seriesYear').textContent = DATA.series.year;
-  document.getElementById('bestOf').textContent = DATA.series.best_of;
-  document.getElementById('totalEvents').textContent = DATA.series.total_events;
-  document.getElementById('participationPts').textContent = DATA.series.participation_points;
+  if (DATA.series.is_single_tournament) {
+    document.getElementById('subtitleDetail').textContent = 'Single Tournament';
+  } else {
+    document.getElementById('subtitleDetail').innerHTML = 'Best <span id="bestOf">' + DATA.series.best_of + '</span> of <span id="totalEvents">' + DATA.series.total_events + '</span> tournaments &bull; <span id="participationPts">' + DATA.series.participation_points + '</span> participation pts per event';
+  }
   const badge = document.getElementById('statusBadge');
   badge.textContent = DATA.series.status.charAt(0).toUpperCase() + DATA.series.status.slice(1);
   badge.className = 'status-badge status-' + DATA.series.status;
@@ -1163,24 +1187,39 @@ async function renderAll() {
   }
 }
 
-function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit, useParticipation, selectedCat }) {
+function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit, useParticipation, selectedCat, scoringCategories }) {
   const thead = document.getElementById('leaderboardHead');
   const tbody = document.getElementById('leaderboardBody');
   const empty = document.getElementById('emptyState');
   const isWeight = unit === 'lbs';
   const unitLabel = isWeight ? ' (lbs)' : '';
+  const isSingle = DATA.series.is_single_tournament;
+  const scoreCats = (isSingle && scoringCategories) ? scoringCategories : [];
 
   let hh = '<th>Rank</th>';
   hh += isIndividualView ? '<th>Angler</th><th class="hide-mobile">Boat</th>' : '<th>Boat</th><th class="hide-mobile">Captain</th>';
-  for (const t of tournaments) {
-    hh += `<th class="tournament-col hide-mobile" data-tid="${t.id}" title="${escHtml(t.event_name)}">T${t.event_number}</th>`;
+
+  if (isSingle && scoreCats.length > 0) {
+    // Show scoring category columns instead of tournament columns
+    for (const cat of scoreCats) {
+      hh += `<th class="tournament-col hide-mobile" style="text-align:center;" title="${escHtml(cat.name)}">${escHtml(cat.name)}</th>`;
+    }
+    hh += `<th style="text-align:center;">Total${unitLabel}</th>`;
+  } else {
+    for (const t of tournaments) {
+      hh += `<th class="tournament-col hide-mobile" data-tid="${t.id}" title="${escHtml(t.event_name)}">T${t.event_number}</th>`;
+    }
+    if (isSingle) {
+      hh += `<th style="text-align:center;">Total${unitLabel}</th>`;
+    } else {
+      const bestLabel = `Best ${DATA.series.best_of}${useParticipation ? '+PP' : ''}${unitLabel}`;
+      hh += `<th style="text-align:center;" class="hide-mobile">Total${unitLabel}</th>`;
+      hh += `<th style="text-align:center;">${bestLabel}</th>`;
+    }
   }
-  const bestLabel = `Best ${DATA.series.best_of}${useParticipation ? '+PP' : ''}${unitLabel}`;
-  hh += `<th style="text-align:center;" class="hide-mobile">Total${unitLabel}</th>`;
-  hh += `<th style="text-align:center;">${bestLabel}</th>`;
   thead.innerHTML = hh;
 
-  thead.querySelectorAll('.tournament-col').forEach(th => {
+  thead.querySelectorAll('.tournament-col[data-tid]').forEach(th => {
     th.addEventListener('click', () => showTournamentModal(parseInt(th.dataset.tid)));
   });
 
@@ -1207,19 +1246,37 @@ function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit
       bh += `<td class="sub-cell hide-mobile">${escHtml(p.captain || '')}</td>`;
     }
 
-    for (const t of tournaments) {
-      const pts = row.tournamentPoints[String(t.id)] || 0;
-      const isCounted = row.counted[String(t.id)];
-      const cls = pts === 0 ? 'no-entry' : (isCounted ? 'counted' : 'not-counted');
-      let display = '&mdash;';
-      if (pts > 0) display = isWeight ? pts.toLocaleString() + '<span class="unit-suffix">lbs</span>' : pts.toLocaleString();
-      bh += `<td class="tournament-cell ${cls} hide-mobile">${display}</td>`;
-    }
+    if (isSingle && scoreCats.length > 0) {
+      // Show per-category point cells
+      for (const cat of scoreCats) {
+        const pts = (row.categoryPoints || {})[String(cat.id)] || 0;
+        const cls = pts === 0 ? 'no-entry' : 'counted';
+        let display = '&mdash;';
+        if (pts > 0) display = isWeight ? pts.toLocaleString() + '<span class="unit-suffix">lbs</span>' : pts.toLocaleString();
+        bh += `<td class="tournament-cell ${cls} hide-mobile">${display}</td>`;
+      }
+      const totalDisplay = isWeight ? row.totalAll.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.totalAll.toLocaleString();
+      bh += `<td class="bestof-cell">${totalDisplay}</td>`;
+    } else {
+      for (const t of tournaments) {
+        const pts = row.tournamentPoints[String(t.id)] || 0;
+        const isCounted = row.counted[String(t.id)];
+        const cls = pts === 0 ? 'no-entry' : (isSingle ? 'counted' : (isCounted ? 'counted' : 'not-counted'));
+        let display = '&mdash;';
+        if (pts > 0) display = isWeight ? pts.toLocaleString() + '<span class="unit-suffix">lbs</span>' : pts.toLocaleString();
+        bh += `<td class="tournament-cell ${cls} hide-mobile">${display}</td>`;
+      }
 
-    const bestDisplay = isWeight ? row.bestOfScore.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.bestOfScore.toLocaleString();
-    const totalDisplay = isWeight ? row.totalAll.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.totalAll.toLocaleString();
-    bh += `<td class="total-cell hide-mobile">${totalDisplay}</td>`;
-    bh += `<td class="bestof-cell">${bestDisplay}</td>`;
+      if (isSingle) {
+        const totalDisplay = isWeight ? row.totalAll.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.totalAll.toLocaleString();
+        bh += `<td class="bestof-cell">${totalDisplay}</td>`;
+      } else {
+        const bestDisplay = isWeight ? row.bestOfScore.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.bestOfScore.toLocaleString();
+        const totalDisplay = isWeight ? row.totalAll.toLocaleString() + '<span class="unit-suffix">lbs</span>' : row.totalAll.toLocaleString();
+        bh += `<td class="total-cell hide-mobile">${totalDisplay}</td>`;
+        bh += `<td class="bestof-cell">${bestDisplay}</td>`;
+      }
+    }
     bh += '</tr>';
   }
   tbody.innerHTML = bh;
@@ -1264,10 +1321,11 @@ async function showBoatModal(part) {
   </div>`;
 
   if (myRow) {
+    const isSingle = DATA.series.is_single_tournament;
     html += `<div class="detail-stats">
       <div class="detail-stat"><div class="stat-value">#${myRow.rank}</div><div class="stat-label">Overall Rank</div></div>
-      <div class="detail-stat"><div class="stat-value">${myRow.bestOfScore.toLocaleString()}</div><div class="stat-label">Best ${DATA.series.best_of} + PP</div></div>
-      <div class="detail-stat"><div class="stat-value">${myRow.totalAll.toLocaleString()}</div><div class="stat-label">Total Rel. Pts</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.bestOfScore.toLocaleString()}</div><div class="stat-label">${isSingle ? 'Total' : 'Best ' + DATA.series.best_of + ' + PP'}</div></div>
+      ${isSingle ? '' : '<div class="detail-stat"><div class="stat-value">' + myRow.totalAll.toLocaleString() + '</div><div class="stat-label">Total Rel. Pts</div></div>'}
       <div class="detail-stat"><div class="stat-value">${myRow.tournamentsEntered}</div><div class="stat-label">Events</div></div>
     </div>`;
   }
@@ -1322,10 +1380,11 @@ async function showAnglerModal(part) {
   </div>`;
 
   if (myRow) {
+    const isSingle = DATA.series.is_single_tournament;
     html += `<div class="detail-stats">
       <div class="detail-stat"><div class="stat-value">#${myRow.rank}</div><div class="stat-label">${cat ? cat.name : ''} Rank</div></div>
-      <div class="detail-stat"><div class="stat-value">${myRow.bestOfScore.toLocaleString()}</div><div class="stat-label">Best ${DATA.series.best_of} + PP</div></div>
-      <div class="detail-stat"><div class="stat-value">${myRow.totalAll.toLocaleString()}</div><div class="stat-label">Total Rel. Pts</div></div>
+      <div class="detail-stat"><div class="stat-value">${myRow.bestOfScore.toLocaleString()}</div><div class="stat-label">${isSingle ? 'Total' : 'Best ' + DATA.series.best_of + ' + PP'}</div></div>
+      ${isSingle ? '' : '<div class="detail-stat"><div class="stat-value">' + myRow.totalAll.toLocaleString() + '</div><div class="stat-label">Total Rel. Pts</div></div>'}
       <div class="detail-stat"><div class="stat-value">${myRow.tournamentsEntered}</div><div class="stat-label">Events</div></div>
     </div>`;
   }
@@ -2274,10 +2333,24 @@ function initSuperAdminHandlers() {
     const name = document.getElementById('saName').value.trim();
     if (!slug || !name) { showToast('Slug and name are required.', true); return; }
     try {
+      let logo_path = null;
+      const logoFile = document.getElementById('saLogo').files[0];
+      if (logoFile) {
+        const fd = new FormData();
+        fd.append('file', logoFile);
+        const uploadResp = await fetch('/api/admin/upload-logo', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN },
+          body: fd,
+        });
+        if (!uploadResp.ok) { const err = await uploadResp.json(); throw new Error(err.detail || 'Logo upload failed'); }
+        const uploadData = await uploadResp.json();
+        logo_path = '/uploads/' + uploadData.filename;
+      }
       await api('/api/admin/series', {
         method: 'POST',
         body: JSON.stringify({
-          slug, name,
+          slug, name, logo_path,
           year: parseInt(document.getElementById('saYear').value) || null,
           best_of: parseInt(document.getElementById('saBestOf').value) || 3,
           total_events: parseInt(document.getElementById('saTotalEvents').value) || null,
@@ -2287,8 +2360,49 @@ function initSuperAdminHandlers() {
       });
       document.getElementById('saSlug').value = '';
       document.getElementById('saName').value = '';
+      document.getElementById('saLogo').value = '';
       renderSuperAdminPanel();
       showToast('Series created!');
+    } catch(e) { showToast('Error: ' + e.message, true); }
+  });
+
+  document.getElementById('saCreateTournBtn').addEventListener('click', async () => {
+    const slug = document.getElementById('saTournSlug').value.trim();
+    const name = document.getElementById('saTournName').value.trim();
+    if (!slug || !name) { showToast('Slug and name are required.', true); return; }
+    try {
+      let logo_path = null;
+      const logoFile = document.getElementById('saTournLogo').files[0];
+      if (logoFile) {
+        const fd = new FormData();
+        fd.append('file', logoFile);
+        const uploadResp = await fetch('/api/admin/upload-logo', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN },
+          body: fd,
+        });
+        if (!uploadResp.ok) { const err = await uploadResp.json(); throw new Error(err.detail || 'Logo upload failed'); }
+        const uploadData = await uploadResp.json();
+        logo_path = '/uploads/' + uploadData.filename;
+      }
+      await api('/api/admin/series', {
+        method: 'POST',
+        body: JSON.stringify({
+          slug, name, logo_path,
+          year: parseInt(document.getElementById('saTournYear').value) || null,
+          best_of: 1,
+          total_events: 1,
+          participation_points: 0,
+          is_single_tournament: true,
+          primary_color: document.getElementById('saTournPrimaryColor').value,
+          accent_color: document.getElementById('saTournAccentColor').value,
+        }),
+      });
+      document.getElementById('saTournSlug').value = '';
+      document.getElementById('saTournName').value = '';
+      document.getElementById('saTournLogo').value = '';
+      renderSuperAdminPanel();
+      showToast('Tournament leaderboard created!');
     } catch(e) { showToast('Error: ' + e.message, true); }
   });
 
@@ -2316,11 +2430,16 @@ async function renderSuperAdminPanel() {
     const seriesList = await api('/api/admin/series');
     // Populate series list
     const listHtml = seriesList.map(s => `<li>
-      <div class="item-info">
-        <div class="item-name">${escHtml(s.name)} <span style="font-size:0.75rem;color:var(--gray);">(${s.slug})</span></div>
-        <div class="item-meta">Year: ${s.year || 'N/A'} &bull; Status: ${s.status}${s.primary_color ? ' &bull; <span style="display:inline-block;width:12px;height:12px;background:'+s.primary_color+';border-radius:3px;vertical-align:middle;"></span>' : ''}</div>
+      <div style="display:flex;align-items:center;gap:0.75rem;flex:1;min-width:0;">
+        ${s.logo_path ? `<img src="${escHtml(s.logo_path)}" style="width:40px;height:40px;object-fit:contain;border-radius:4px;background:rgba(255,255,255,0.05);" alt="logo">` : `<div style="width:40px;height:40px;border-radius:4px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:var(--gray);font-size:0.65rem;">No logo</div>`}
+        <div class="item-info" style="min-width:0;">
+          <div class="item-name">${escHtml(s.name)} <span style="font-size:0.75rem;color:var(--gray);">(${s.slug})</span> <span style="font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:4px;background:${s.is_single_tournament ? 'rgba(176,125,58,0.15)' : 'rgba(14,138,125,0.15)'};color:${s.is_single_tournament ? 'var(--gold)' : 'var(--seafoam)'};">${s.is_single_tournament ? 'tournament' : 'series'}</span></div>
+          <div class="item-meta">Year: ${s.year || 'N/A'} &bull; Status: ${s.status}${s.primary_color ? ' &bull; <span style="display:inline-block;width:12px;height:12px;background:'+s.primary_color+';border-radius:3px;vertical-align:middle;"></span>' : ''}</div>
+        </div>
       </div>
-      <div style="display:flex;gap:0.4rem;">
+      <div style="display:flex;gap:0.4rem;align-items:center;">
+        <input type="file" id="saLogoFile_${s.slug}" accept="image/*" style="display:none;" onchange="uploadSeriesLogo('${escHtml(s.slug)}', this)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('saLogoFile_${escHtml(s.slug)}').click()">${s.logo_path ? 'Change Logo' : 'Upload Logo'}</button>
         <a class="btn btn-secondary btn-sm" href="/t/${s.slug}" target="_blank">View</a>
         <button class="btn btn-danger btn-sm" onclick="deleteSeries('${escHtml(s.slug)}')">Delete</button>
       </div>
@@ -2351,6 +2470,28 @@ window.deleteSeries = async function(slug) {
     await api('/api/admin/series/' + slug, { method: 'DELETE' });
     renderSuperAdminPanel();
     showToast('Series deleted.');
+  } catch(e) { showToast('Error: ' + e.message, true); }
+};
+
+window.uploadSeriesLogo = async function(slug, input) {
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const uploadResp = await fetch('/api/admin/upload-logo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN },
+      body: fd,
+    });
+    if (!uploadResp.ok) { const err = await uploadResp.json(); throw new Error(err.detail || 'Logo upload failed'); }
+    const uploadData = await uploadResp.json();
+    await api('/api/' + slug + '/series', {
+      method: 'PUT',
+      body: JSON.stringify({ logo_path: '/uploads/' + uploadData.filename }),
+    });
+    renderSuperAdminPanel();
+    showToast('Logo updated!');
   } catch(e) { showToast('Error: ' + e.message, true); }
 };
 
