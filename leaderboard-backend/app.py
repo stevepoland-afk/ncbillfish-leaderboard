@@ -36,8 +36,8 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(_THIS_DIR, "uploads"))
 PARENT_DIR = os.path.dirname(_THIS_DIR)
-DEFAULT_ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@ncbillfish.com")
-DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "changeme123")
+DEFAULT_ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "steve.poland@cynoscionenvironmental.com")
+DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "*Cynoscion4416")
 
 os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
