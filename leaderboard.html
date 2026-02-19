@@ -367,6 +367,7 @@ body.kiosk-mode .header-right { display: none !important; }
     <div class="header-right">
       <div id="updatedAt"></div>
       <span id="adminBadgeHeader" class="admin-badge" style="display:none;">ADMIN MODE</span>
+      <span id="userEmailDisplay" style="display:none;font-size:0.8rem;color:var(--gray-light);margin-left:0.5rem;"></span>
       <div style="margin-top:0.3rem;">
         <button class="btn btn-primary btn-sm" id="loginBtn">Admin Login</button>
         <button class="btn btn-secondary btn-sm" id="changePwBtn" style="display:none;">Change Password</button>
@@ -862,6 +863,7 @@ const TOKEN_KEY = 'leaderboard_token_' + SERIES_SLUG;
 let DATA = null;
 let IS_ADMIN = false;
 let USER_ROLE = null;
+let USER_EMAIL = null;
 let AUTH_TOKEN = sessionStorage.getItem(TOKEN_KEY);
 let currentResultsType = 'boats';
 let searchDebounceTimer = null;
@@ -896,6 +898,7 @@ async function login(email, password) {
   });
   AUTH_TOKEN = data.token;
   USER_ROLE = data.role;
+  USER_EMAIL = data.email;
   sessionStorage.setItem(TOKEN_KEY, AUTH_TOKEN);
   IS_ADMIN = true;
   updateAdminUI();
@@ -918,6 +921,7 @@ function logout() {
   AUTH_TOKEN = null;
   IS_ADMIN = false;
   USER_ROLE = null;
+  USER_EMAIL = null;
   sessionStorage.removeItem(TOKEN_KEY);
   updateAdminUI();
   document.querySelectorAll('#adminTabs li').forEach(t => t.classList.remove('active'));
@@ -931,6 +935,9 @@ function logout() {
 function updateAdminUI() {
   document.getElementById('adminNav').classList.toggle('visible', IS_ADMIN);
   document.getElementById('adminBadgeHeader').style.display = IS_ADMIN ? 'inline-block' : 'none';
+  const emailEl = document.getElementById('userEmailDisplay');
+  emailEl.style.display = IS_ADMIN ? 'inline' : 'none';
+  emailEl.textContent = USER_EMAIL || '';
   document.getElementById('loginBtn').style.display = IS_ADMIN ? 'none' : 'inline-block';
   document.getElementById('changePwBtn').style.display = IS_ADMIN ? 'inline-block' : 'none';
   document.getElementById('logoutBtn').style.display = IS_ADMIN ? 'inline-block' : 'none';
@@ -963,10 +970,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const me = await api('/api/auth/me');
       IS_ADMIN = true;
       USER_ROLE = me.role;
+      USER_EMAIL = me.email;
     } catch(e) {
       AUTH_TOKEN = null;
       IS_ADMIN = false;
       USER_ROLE = null;
+      USER_EMAIL = null;
       sessionStorage.removeItem(TOKEN_KEY);
     }
   }
