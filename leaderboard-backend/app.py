@@ -1,10 +1,11 @@
 """
-NC Billfish Series Leaderboard — Backend API
+Multi-Tenant Embeddable Leaderboard Platform — Backend API
 FastAPI + SQLite backend for multi-tenant fishing tournament leaderboards.
 """
 
 import io
 import os
+import re
 import json
 import sqlite3
 import secrets
@@ -14,7 +15,7 @@ from contextlib import contextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -54,6 +55,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def embed_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/embed/"):
+        response.headers["X-Frame-Options"] = "ALLOWALL"
+        response.headers["Content-Security-Policy"] = "frame-ancestors *"
+    else:
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    return response
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
@@ -159,6 +172,28 @@ def init_database():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scoring_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            value TEXT NOT NULL,
+            is_penalty INTEGER DEFAULT 0,
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE
+        )
+    """)
+
+    # Migration: add branding columns to existing databases
+    for col_sql in [
+        "ALTER TABLE series ADD COLUMN primary_color TEXT DEFAULT '#0e8a7d'",
+        "ALTER TABLE series ADD COLUMN accent_color TEXT DEFAULT '#b07d3a'",
+    ]:
+        try:
+            c.execute(col_sql)
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -187,6 +222,25 @@ class SeriesUpdate(BaseModel):
     participation_points: Optional[float] = None
     logo_path: Optional[str] = None
     status: Optional[str] = None
+    primary_color: Optional[str] = None
+    accent_color: Optional[str] = None
+
+class SeriesCreate(BaseModel):
+    slug: str
+    name: str
+    year: Optional[int] = None
+    description: Optional[str] = None
+    total_events: Optional[int] = None
+    best_of: Optional[int] = 3
+    participation_points: Optional[float] = 50
+    primary_color: Optional[str] = "#0e8a7d"
+    accent_color: Optional[str] = "#b07d3a"
+
+class AdminUserCreate(BaseModel):
+    email: str
+    password: str
+    series_slug: str
+    role: Optional[str] = "admin"
 
 class TournamentCreate(BaseModel):
     event_name: str
@@ -208,6 +262,18 @@ class CategoryCreate(BaseModel):
     applies_to: Optional[str] = None
     unit: Optional[str] = "pts"
     sort_order: Optional[int] = 0
+
+class ScoringRuleCreate(BaseModel):
+    label: str
+    value: str
+    is_penalty: Optional[bool] = False
+    sort_order: Optional[int] = 0
+
+class ScoringRuleUpdate(BaseModel):
+    label: Optional[str] = None
+    value: Optional[str] = None
+    is_penalty: Optional[bool] = None
+    sort_order: Optional[int] = None
 
 class ParticipantCreate(BaseModel):
     boat_name: Optional[str] = None
@@ -284,6 +350,13 @@ def require_series_access(slug: str, user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Series not found")
         if user["role"] != "super_admin" and user["series_id"] != series["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
+    return user
+
+
+def require_super_admin(user: dict = Depends(get_current_user)):
+    """Only allow super_admin users."""
+    if user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Super admin access required")
     return user
 
 
@@ -502,6 +575,80 @@ def auth_me(user: dict = Depends(get_current_user)):
 
 
 # ============================================================================
+# Super-Admin Endpoints (must be before /api/{slug} catch-all)
+# ============================================================================
+
+@app.get("/api/admin/series")
+def admin_list_series(user: dict = Depends(require_super_admin)):
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM series ORDER BY name").fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/admin/series")
+def admin_create_series(data: SeriesCreate, user: dict = Depends(require_super_admin)):
+    if not re.match(r'^[a-z0-9][a-z0-9_-]{1,48}[a-z0-9]$', data.slug):
+        raise HTTPException(status_code=400, detail="Slug must be 3-50 chars: lowercase letters, numbers, hyphens, underscores")
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM series WHERE slug = ?", (data.slug,)).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="Series slug already exists")
+        conn.execute(
+            "INSERT INTO series (slug, name, year, description, total_events, best_of, participation_points, primary_color, accent_color, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+            (data.slug, data.name, data.year, data.description, data.total_events,
+             data.best_of, data.participation_points, data.primary_color, data.accent_color),
+        )
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM series WHERE slug = ?", (data.slug,)).fetchone())
+
+
+@app.delete("/api/admin/series/{slug}")
+def admin_delete_series(slug: str, user: dict = Depends(require_super_admin)):
+    with get_db() as conn:
+        series = conn.execute("SELECT id FROM series WHERE slug = ?", (slug,)).fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Series not found")
+        sid = series["id"]
+        conn.execute("DELETE FROM points WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM participants WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM categories WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM scoring_rules WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM tournaments WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM users WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM series WHERE id = ?", (sid,))
+        conn.commit()
+        return {"deleted": True}
+
+
+@app.get("/api/admin/users")
+def admin_list_users(user: dict = Depends(require_super_admin)):
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT u.id, u.email, u.role, u.series_id, s.slug as series_slug, s.name as series_name "
+            "FROM users u JOIN series s ON u.series_id = s.id ORDER BY u.email"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/admin/users")
+def admin_create_user(data: AdminUserCreate, user: dict = Depends(require_super_admin)):
+    with get_db() as conn:
+        series = conn.execute("SELECT id FROM series WHERE slug = ?", (data.series_slug,)).fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Series not found")
+        existing = conn.execute("SELECT id FROM users WHERE email = ?", (data.email,)).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="User with this email already exists")
+        hashed = pwd_context.hash(data.password)
+        conn.execute(
+            "INSERT INTO users (series_id, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            (series["id"], data.email, hashed, data.role),
+        )
+        conn.commit()
+        return {"created": True, "email": data.email, "series_slug": data.series_slug}
+
+
+# ============================================================================
 # Public Endpoints
 # ============================================================================
 
@@ -571,6 +718,72 @@ def delete_category(slug: str, cid: int, user: dict = Depends(get_current_user))
         conn.commit()
         if not affected:
             raise HTTPException(status_code=404, detail="Category not found")
+        return {"deleted": True}
+
+
+@app.get("/api/{slug}/scoring-rules")
+def list_scoring_rules(slug: str):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        rows = conn.execute(
+            "SELECT * FROM scoring_rules WHERE series_id = ? ORDER BY sort_order", (s["id"],)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/{slug}/scoring-rules")
+def create_scoring_rule(slug: str, data: ScoringRuleCreate, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        cur = conn.execute(
+            "INSERT INTO scoring_rules (series_id, label, value, is_penalty, sort_order) VALUES (?, ?, ?, ?, ?)",
+            (s["id"], data.label, data.value, 1 if data.is_penalty else 0, data.sort_order),
+        )
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM scoring_rules WHERE id = ?", (cur.lastrowid,)).fetchone())
+
+
+@app.put("/api/{slug}/scoring-rules/{rid}")
+def update_scoring_rule(slug: str, rid: int, data: ScoringRuleUpdate, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        existing = conn.execute(
+            "SELECT * FROM scoring_rules WHERE id = ? AND series_id = ?", (rid, s["id"])
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Scoring rule not found")
+        updates = {}
+        for k, v in data.model_dump().items():
+            if v is not None:
+                if k == "is_penalty":
+                    updates[k] = 1 if v else 0
+                else:
+                    updates[k] = v
+        if not updates:
+            return dict(existing)
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        vals = list(updates.values()) + [rid]
+        conn.execute(f"UPDATE scoring_rules SET {set_clause} WHERE id = ?", vals)
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM scoring_rules WHERE id = ?", (rid,)).fetchone())
+
+
+@app.delete("/api/{slug}/scoring-rules/{rid}")
+def delete_scoring_rule(slug: str, rid: int, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        affected = conn.execute(
+            "DELETE FROM scoring_rules WHERE id = ? AND series_id = ?", (rid, s["id"])
+        ).rowcount
+        conn.commit()
+        if not affected:
+            raise HTTPException(status_code=404, detail="Scoring rule not found")
         return {"deleted": True}
 
 
@@ -1184,35 +1397,129 @@ async def upload_photo(slug: str, file: UploadFile = File(...), user: dict = Dep
 # Startup: Init DB, seed default series + admin
 # ============================================================================
 
+SEED_SERIES_SLUG = os.environ.get("SEED_SERIES_SLUG", "ncbillfish")
+SEED_SERIES_NAME = os.environ.get("SEED_SERIES_NAME", "NC Billfish Series")
+
+
 @app.on_event("startup")
 def startup():
     init_database()
 
     with get_db() as conn:
-        # Create default series if none exists
-        existing = conn.execute("SELECT id FROM series WHERE slug = 'ncbillfish'").fetchone()
-        if not existing:
+        # Only seed if series table is empty (first run)
+        any_series = conn.execute("SELECT COUNT(*) as cnt FROM series").fetchone()
+        if any_series["cnt"] == 0:
             conn.execute(
                 "INSERT INTO series (slug, name, year, description, total_events, best_of, participation_points, logo_path, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                ("ncbillfish", "NC Billfish Series", 2026,
-                 "North Carolina's premier billfish tournament series",
-                 8, 3, 50, "NCBillfishSeries.jpg", "active"),
+                (SEED_SERIES_SLUG, SEED_SERIES_NAME, 2026,
+                 "Fishing tournament series",
+                 8, 3, 50, "/static/NCBillfishSeries.jpg", "active"),
             )
+            # Seed default scoring rules for the NC Billfish series
+            seeded_series = conn.execute("SELECT id FROM series WHERE slug = ?", (SEED_SERIES_SLUG,)).fetchone()
+            if seeded_series:
+                default_rules = [
+                    (seeded_series["id"], "Per tournament series fished", "50 pts", 0, 0),
+                    (seeded_series["id"], "Per blue marlin released", "400 pts", 0, 1),
+                    (seeded_series["id"], "Per white marlin, sailfish, or spearfish released", "125 pts", 0, 2),
+                    (seeded_series["id"], 'Per blue marlin landed (min 110" or 400 lbs)', "1 pt/lb", 0, 3),
+                    (seeded_series["id"], "Penalty for undersized fish", "-200 pts", 1, 4),
+                ]
+                conn.executemany(
+                    "INSERT INTO scoring_rules (series_id, label, value, is_penalty, sort_order) VALUES (?, ?, ?, ?, ?)",
+                    default_rules,
+                )
             conn.commit()
-
-        series = conn.execute("SELECT id FROM series WHERE slug = 'ncbillfish'").fetchone()
-        series_id = series["id"]
+            print(f"Seeded series: {SEED_SERIES_SLUG}")
 
         # Create default admin if none exists
         existing_user = conn.execute("SELECT id FROM users WHERE email = ?", (DEFAULT_ADMIN_EMAIL,)).fetchone()
         if not existing_user:
-            hashed = pwd_context.hash(DEFAULT_ADMIN_PASSWORD)
-            conn.execute(
-                "INSERT INTO users (series_id, email, password_hash, role) VALUES (?, ?, ?, ?)",
-                (series_id, DEFAULT_ADMIN_EMAIL, hashed, "super_admin"),
-            )
-            conn.commit()
-            print(f"Default admin created: {DEFAULT_ADMIN_EMAIL}")
+            series = conn.execute("SELECT id FROM series ORDER BY id LIMIT 1").fetchone()
+            if series:
+                hashed = pwd_context.hash(DEFAULT_ADMIN_PASSWORD)
+                conn.execute(
+                    "INSERT INTO users (series_id, email, password_hash, role) VALUES (?, ?, ?, ?)",
+                    (series["id"], DEFAULT_ADMIN_EMAIL, hashed, "super_admin"),
+                )
+                conn.commit()
+                print(f"Default admin created: {DEFAULT_ADMIN_EMAIL}")
+
+
+# ============================================================================
+# Tenant Frontend Routes
+# ============================================================================
+
+@app.get("/t/{slug}")
+def serve_tenant(slug: str):
+    """Serve leaderboard.html for a specific series (validates slug exists)."""
+    with get_db() as conn:
+        series = conn.execute("SELECT id FROM series WHERE slug = ?", (slug,)).fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Series not found")
+    html_path = os.path.join(PARENT_DIR, "leaderboard.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    return HTMLResponse("<h1>Leaderboard not found</h1>")
+
+
+@app.get("/embed/{slug}")
+def serve_embed(slug: str):
+    """Serve leaderboard.html for iframe embedding."""
+    with get_db() as conn:
+        series = conn.execute("SELECT id FROM series WHERE slug = ?", (slug,)).fetchone()
+        if not series:
+            raise HTTPException(status_code=404, detail="Series not found")
+    html_path = os.path.join(PARENT_DIR, "leaderboard.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    return HTMLResponse("<h1>Leaderboard not found</h1>")
+
+
+@app.get("/widget/{slug}/leaderboard.js")
+def serve_widget_js(slug: str, request: Request):
+    """Serve a JS snippet that creates an auto-resizing iframe embed."""
+    base_url = str(request.base_url).rstrip("/")
+    js = f"""(function(){{
+  var container = document.currentScript.getAttribute('data-container');
+  var el = container ? document.getElementById(container) : document.currentScript.parentElement;
+  if (!el) return;
+  var iframe = document.createElement('iframe');
+  iframe.src = '{base_url}/embed/{slug}';
+  iframe.style.width = '100%';
+  iframe.style.border = 'none';
+  iframe.style.minHeight = '600px';
+  iframe.setAttribute('scrolling', 'no');
+  el.appendChild(iframe);
+  window.addEventListener('message', function(e) {{
+    if (e.data && e.data.type === 'leaderboard-resize' && e.data.slug === '{slug}') {{
+      iframe.style.height = e.data.height + 'px';
+    }}
+  }});
+}})();"""
+    from starlette.responses import Response
+    return Response(content=js, media_type="application/javascript")
+
+
+@app.get("/")
+def serve_root():
+    """If 1 series, redirect to /t/{slug}. If multiple, show directory."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT slug, name FROM series WHERE status = 'active' ORDER BY name").fetchall()
+        if len(rows) == 0:
+            return HTMLResponse("<h1>Leaderboard Platform</h1><p>No series configured. Visit <a href='/docs'>/docs</a> for the API.</p>")
+        if len(rows) == 1:
+            return RedirectResponse(url=f"/t/{rows[0]['slug']}", status_code=302)
+        # Multiple series — show directory page
+        items = "".join(
+            f'<li style="margin:0.5rem 0;"><a href="/t/{r["slug"]}" style="font-size:1.1rem;">{r["name"]}</a></li>'
+            for r in rows
+        )
+        html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tournament Leaderboards</title>
+        <style>body{{font-family:sans-serif;max-width:600px;margin:2rem auto;padding:0 1rem;}}
+        a{{color:#0e8a7d;}} a:hover{{color:#b07d3a;}}</style></head>
+        <body><h1>Tournament Leaderboards</h1><ul>{items}</ul></body></html>"""
+        return HTMLResponse(html)
 
 
 # ============================================================================
@@ -1222,13 +1529,5 @@ def startup():
 # Serve uploaded photos
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# Serve frontend assets from parent directory (ncbs-leaderboard.html, NCBillfishSeries.jpg)
+# Serve frontend assets from parent directory (leaderboard.html, logos, etc.)
 app.mount("/static", StaticFiles(directory=PARENT_DIR), name="static")
-
-
-@app.get("/")
-def serve_frontend():
-    html_path = os.path.join(PARENT_DIR, "ncbs-leaderboard.html")
-    if os.path.exists(html_path):
-        return FileResponse(html_path, media_type="text/html")
-    return HTMLResponse("<h1>Leaderboard API</h1><p>Visit <a href='/docs'>/docs</a> for the API.</p>")
