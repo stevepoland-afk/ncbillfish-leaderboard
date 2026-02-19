@@ -369,6 +369,7 @@ body.kiosk-mode .header-right { display: none !important; }
       <span id="adminBadgeHeader" class="admin-badge" style="display:none;">ADMIN MODE</span>
       <div style="margin-top:0.3rem;">
         <button class="btn btn-primary btn-sm" id="loginBtn">Admin Login</button>
+        <button class="btn btn-secondary btn-sm" id="changePwBtn" style="display:none;">Change Password</button>
         <button class="btn btn-danger btn-sm" id="logoutBtn" style="display:none;">Logout</button>
       </div>
     </div>
@@ -813,6 +814,36 @@ body.kiosk-mode .header-right { display: none !important; }
   </div>
 </div>
 
+<!-- CHANGE PASSWORD MODAL -->
+<div class="modal-overlay" id="changePwModal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h2>Change Password</h2>
+      <button class="modal-close" onclick="closeModal('changePwModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="changePwForm">
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Current Password</label>
+          <input type="password" id="cpCurrentPw" required style="width:100%;">
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>New Password</label>
+          <input type="password" id="cpNewPw" required minlength="8" style="width:100%;">
+        </div>
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label>Confirm New Password</label>
+          <input type="password" id="cpConfirmPw" required minlength="8" style="width:100%;">
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Update Password</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal('changePwModal')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -901,6 +932,7 @@ function updateAdminUI() {
   document.getElementById('adminNav').classList.toggle('visible', IS_ADMIN);
   document.getElementById('adminBadgeHeader').style.display = IS_ADMIN ? 'inline-block' : 'none';
   document.getElementById('loginBtn').style.display = IS_ADMIN ? 'none' : 'inline-block';
+  document.getElementById('changePwBtn').style.display = IS_ADMIN ? 'inline-block' : 'none';
   document.getElementById('logoutBtn').style.display = IS_ADMIN ? 'inline-block' : 'none';
   const saTab = document.getElementById('superAdminTab');
   if (saTab) saTab.style.display = USER_ROLE === 'super_admin' ? '' : 'none';
@@ -952,7 +984,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   document.getElementById('loginBtn').addEventListener('click', () => openModal('loginModal'));
+  document.getElementById('changePwBtn').addEventListener('click', () => openModal('changePwModal'));
   document.getElementById('logoutBtn').addEventListener('click', () => { logout(); showToast('Logged out.'); });
+
+  document.getElementById('changePwForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const current_password = document.getElementById('cpCurrentPw').value;
+    const new_password = document.getElementById('cpNewPw').value;
+    const confirm_pw = document.getElementById('cpConfirmPw').value;
+    if (new_password !== confirm_pw) { showToast('New passwords do not match.', true); return; }
+    try {
+      await api('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password, new_password }),
+      });
+      closeModal('changePwModal');
+      document.getElementById('changePwForm').reset();
+      showToast('Password updated successfully!');
+    } catch(err) { showToast('Error: ' + err.message, true); }
+  });
 
   await loadData();
   const params = new URLSearchParams(window.location.search);

@@ -319,6 +319,10 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
 
 # ============================================================================
 # Auth Helpers
@@ -594,6 +598,22 @@ def auth_me(user: dict = Depends(get_current_user)):
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
         return dict(row)
+
+
+@app.post("/api/auth/change-password")
+def change_password(req: ChangePasswordRequest, user: dict = Depends(get_current_user)):
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (int(user["sub"]),)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not pwd_context.verify(req.current_password, row["password_hash"]):
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+        new_hash = pwd_context.hash(req.new_password)
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, row["id"]))
+        conn.commit()
+        return {"success": True}
 
 
 # ============================================================================
