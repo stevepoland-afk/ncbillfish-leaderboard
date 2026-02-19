@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Portal</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy: #f5f7fa;
+  --navy-light: #ffffff;
+  --navy-mid: #e8ecf1;
+  --seafoam: #0e8a7d;
+  --seafoam-dark: #0a6e64;
+  --gold: #b07d3a;
+  --gold-light: #c9943f;
+  --coral: #e04545;
+  --coral-dark: #c43030;
+  --white: #1a1a2e;
+  --gray: #6b7a8d;
+  --gray-light: #4a5568;
+  --text: #2d3748;
+  --border: rgba(0, 0, 0, 0.1);
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --success: #1a9a52;
+  --warning: #c77d0a;
+  --radius: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+html { font-size: 15px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+  background: var(--navy);
+  background-image: linear-gradient(180deg, var(--navy) 0%, #edf0f5 50%, var(--navy) 100%);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+a { color: var(--seafoam); text-decoration: none; }
+a:hover { color: var(--gold); }
+
+.page-wrapper {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+/* Header branding */
+.brand {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.brand h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--white);
+}
+.brand p {
+  font-size: 0.85rem;
+  color: var(--gray);
+  margin-top: 0.25rem;
+}
+
+/* Cards */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.card h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 1rem;
+}
+
+/* Forms */
+.form-group { margin-bottom: 1rem; }
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gray-light);
+  margin-bottom: 0.3rem;
+}
+.form-group input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: var(--navy);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  transition: border-color 0.2s;
+}
+.form-group input:focus {
+  outline: none;
+  border-color: var(--seafoam);
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.6rem 1.25rem;
+  transition: all 0.2s;
+  text-align: center;
+}
+.btn-primary {
+  background: var(--seafoam);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--seafoam-dark);
+}
+.btn-gold {
+  background: var(--gold);
+  color: #fff;
+}
+.btn-gold:hover {
+  background: var(--gold-light);
+}
+.btn-outline {
+  background: transparent;
+  color: var(--gray);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover {
+  background: var(--navy-mid);
+  color: var(--text);
+}
+.btn-danger {
+  background: var(--coral);
+  color: #fff;
+}
+.btn-danger:hover {
+  background: var(--coral-dark);
+}
+.btn-block {
+  display: block;
+  width: 100%;
+}
+
+/* Error / status messages */
+.msg {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  display: none;
+}
+.msg-error {
+  background: rgba(224, 69, 69, 0.1);
+  color: var(--coral);
+  border: 1px solid rgba(224, 69, 69, 0.2);
+}
+.msg-success {
+  background: rgba(26, 154, 82, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(26, 154, 82, 0.2);
+}
+
+/* Welcome bar */
+.welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.welcome-text {
+  font-size: 1rem;
+  color: var(--text);
+}
+.welcome-text strong { color: var(--white); }
+.role-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.role-super {
+  background: rgba(224, 69, 69, 0.15);
+  color: var(--coral);
+  border: 1px solid rgba(224, 69, 69, 0.25);
+}
+.role-admin {
+  background: rgba(14, 138, 125, 0.15);
+  color: var(--seafoam);
+  border: 1px solid rgba(14, 138, 125, 0.25);
+}
+
+/* Series card */
+.series-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.series-item:last-child { border-bottom: none; }
+.series-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  flex-shrink: 0;
+}
+.series-logo-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  background: var(--navy-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: var(--gray);
+  flex-shrink: 0;
+}
+.series-info { flex: 1; min-width: 0; }
+.series-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--white);
+}
+.series-meta {
+  font-size: 0.8rem;
+  color: var(--gray);
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
+.slug-badge {
+  display: inline-block;
+  background: var(--navy-mid);
+  color: var(--gray-light);
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+/* Action bar */
+.action-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+/* Change password section */
+.pw-section { margin-top: 0.5rem; }
+.pw-toggle {
+  font-size: 0.85rem;
+  color: var(--gray);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  padding: 0;
+}
+.pw-toggle:hover { color: var(--seafoam); }
+.pw-form { display: none; margin-top: 0.75rem; }
+.pw-form .form-group { margin-bottom: 0.75rem; }
+
+/* Hidden by default */
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="page-wrapper">
+  <div class="brand">
+    <h1>Admin Portal</h1>
+    <p>Tournament Leaderboard Management</p>
+  </div>
+
+  <!-- ==================== LOGIN VIEW ==================== -->
+  <div id="loginView">
+    <div class="card">
+      <h2>Sign In</h2>
+      <div id="loginError" class="msg msg-error"></div>
+      <form id="loginForm" autocomplete="on">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required autocomplete="email" placeholder="admin@example.com">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Sign In</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== DASHBOARD VIEW ==================== -->
+  <div id="dashboardView" class="hidden">
+    <div class="welcome">
+      <div class="welcome-text">
+        Welcome, <strong id="userEmail"></strong>
+        <span id="roleBadge" class="role-badge"></span>
+      </div>
+    </div>
+
+    <div id="dashMsg" class="msg msg-success"></div>
+
+    <!-- Super Admin: SA Console link -->
+    <div id="superAdminCard" class="card hidden">
+      <h2>Super Admin Console</h2>
+      <p style="font-size:0.85rem;color:var(--gray);margin-bottom:0.75rem;">
+        Manage all series, users, and platform settings from the Super Admin tab inside any leaderboard.
+      </p>
+      <a id="saConsoleLink" href="#" class="btn btn-gold">Open Super Admin Console</a>
+    </div>
+
+    <!-- Regular Admin: Their assigned series -->
+    <div id="mySeriesCard" class="card hidden">
+      <h2>Your Series</h2>
+      <div id="mySeriesContent"></div>
+    </div>
+
+    <!-- Super Admin: All series list -->
+    <div id="allSeriesCard" class="card hidden">
+      <h2>All Series</h2>
+      <div id="allSeriesList"></div>
+    </div>
+
+    <!-- Actions: Change Password & Logout -->
+    <div class="card">
+      <div class="pw-section">
+        <button class="pw-toggle" onclick="togglePwForm()">Change Password</button>
+        <div id="pwForm" class="pw-form">
+          <div id="pwMsg" class="msg"></div>
+          <div class="form-group">
+            <label for="curPw">Current Password</label>
+            <input type="password" id="curPw" autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label for="newPw">New Password</label>
+            <input type="password" id="newPw" autocomplete="new-password" placeholder="Min 8 characters">
+          </div>
+          <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+        </div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-outline" onclick="doLogout()">Logout</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+const TOKEN_KEY = 'admin_landing_token';
+
+// ── Helpers ──────────────────────────────────────────
+
+function getToken() { return sessionStorage.getItem(TOKEN_KEY); }
+function setToken(t) { sessionStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { sessionStorage.removeItem(TOKEN_KEY); }
+
+async function apiFetch(path, opts = {}) {
+  const headers = opts.headers || {};
+  const token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (opts.body && typeof opts.body === 'object') {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  opts.headers = headers;
+  const res = await fetch(API + path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+function showMsg(el, text, type) {
+  el.className = 'msg msg-' + type;
+  el.textContent = text;
+  el.style.display = 'block';
+}
+function hideMsg(el) { el.style.display = 'none'; }
+
+function seriesLink(slug, tab) {
+  const token = getToken();
+  let url = '/t/' + encodeURIComponent(slug);
+  const params = [];
+  if (token) params.push('token=' + encodeURIComponent(token));
+  if (tab) params.push('tab=' + encodeURIComponent(tab));
+  if (params.length) url += '?' + params.join('&');
+  return url;
+}
+
+function buildSeriesRow(s) {
+  const logoHtml = s.logo_path
+    ? `<img class="series-logo" src="${API}${s.logo_path}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="series-logo-placeholder" style="display:none">&#9875;</div>`
+    : `<div class="series-logo-placeholder">&#9875;</div>`;
+
+  const typeBadge = s.is_single_tournament ? 'Tournament' : 'Series';
+  const yearText = s.year ? s.year : '';
+
+  return `
+    <div class="series-item">
+      ${logoHtml}
+      <div class="series-info">
+        <div class="series-name">${esc(s.name)}</div>
+        <div class="series-meta">
+          <span class="slug-badge">${esc(s.slug)}</span>
+          <span>${typeBadge}</span>
+          ${yearText ? '<span>' + yearText + '</span>' : ''}
+        </div>
+      </div>
+      <a href="${seriesLink(s.slug)}" class="btn btn-primary" style="flex-shrink:0;">Manage</a>
+    </div>`;
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+// ── Views ──────────────────────────────────────────
+
+function showLogin() {
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('dashboardView').classList.add('hidden');
+}
+
+async function showDashboard(me) {
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('dashboardView').classList.remove('hidden');
+
+  document.getElementById('userEmail').textContent = me.email;
+
+  const badge = document.getElementById('roleBadge');
+  if (me.role === 'super_admin') {
+    badge.textContent = 'SUPER ADMIN';
+    badge.className = 'role-badge role-super';
+  } else {
+    badge.textContent = 'ADMIN';
+    badge.className = 'role-badge role-admin';
+  }
+
+  if (me.role === 'super_admin') {
+    // Super admin: show SA console card + all series
+    document.getElementById('superAdminCard').classList.remove('hidden');
+    document.getElementById('allSeriesCard').classList.remove('hidden');
+    document.getElementById('mySeriesCard').classList.add('hidden');
+
+    try {
+      const series = await apiFetch('/api/admin/series');
+      const listEl = document.getElementById('allSeriesList');
+      if (series.length === 0) {
+        listEl.innerHTML = '<p style="color:var(--gray);font-size:0.85rem;">No series created yet.</p>';
+      } else {
+        listEl.innerHTML = series.map(buildSeriesRow).join('');
+        // Set SA console link to user's own series, auto-opening Super Admin tab
+        document.getElementById('saConsoleLink').href = seriesLink(me.series_slug, 'super-admin');
+      }
+    } catch (e) {
+      document.getElementById('allSeriesList').innerHTML =
+        '<p style="color:var(--coral);">Failed to load series: ' + esc(e.message) + '</p>';
+    }
+  } else {
+    // Regular admin: show their series
+    document.getElementById('superAdminCard').classList.add('hidden');
+    document.getElementById('allSeriesCard').classList.add('hidden');
+    document.getElementById('mySeriesCard').classList.remove('hidden');
+
+    const content = document.getElementById('mySeriesContent');
+    if (me.series_slug) {
+      content.innerHTML = buildSeriesRow({
+        slug: me.series_slug,
+        name: me.series_name,
+        logo_path: null,  // We don't have it from /me, will try to load
+        year: null,
+        is_single_tournament: false
+      });
+      // Fetch full series data for logo/year
+      try {
+        const s = await apiFetch('/api/' + encodeURIComponent(me.series_slug));
+        content.innerHTML = buildSeriesRow(s);
+      } catch (_) { /* keep the basic version */ }
+    } else {
+      content.innerHTML = '<p style="color:var(--gray);font-size:0.85rem;">No series assigned.</p>';
+    }
+  }
+}
+
+// ── Login ──────────────────────────────────────────
+
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  hideMsg(errEl);
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  try {
+    const data = await apiFetch('/api/auth/login', {
+      method: 'POST',
+      body: {
+        email: document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value
+      }
+    });
+    setToken(data.token);
+    const me = await apiFetch('/api/auth/me');
+    showDashboard(me);
+  } catch (err) {
+    showMsg(errEl, err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+});
+
+// ── Change Password ──────────────────────────────────
+
+function togglePwForm() {
+  const form = document.getElementById('pwForm');
+  form.style.display = form.style.display === 'none' ? 'block' : 'block';
+  if (form.style.display === 'block' && form.dataset.open === '1') {
+    form.style.display = 'none';
+    form.dataset.open = '0';
+  } else {
+    form.style.display = 'block';
+    form.dataset.open = '1';
+  }
+}
+
+async function changePassword() {
+  const msgEl = document.getElementById('pwMsg');
+  hideMsg(msgEl);
+
+  const curPw = document.getElementById('curPw').value;
+  const newPw = document.getElementById('newPw').value;
+
+  if (!curPw || !newPw) {
+    showMsg(msgEl, 'Both fields are required.', 'error');
+    return;
+  }
+  if (newPw.length < 8) {
+    showMsg(msgEl, 'New password must be at least 8 characters.', 'error');
+    return;
+  }
+
+  try {
+    await apiFetch('/api/auth/change-password', {
+      method: 'POST',
+      body: { current_password: curPw, new_password: newPw }
+    });
+    showMsg(msgEl, 'Password updated successfully.', 'success');
+    document.getElementById('curPw').value = '';
+    document.getElementById('newPw').value = '';
+  } catch (err) {
+    showMsg(msgEl, err.message, 'error');
+  }
+}
+
+// ── Logout ──────────────────────────────────────────
+
+function doLogout() {
+  clearToken();
+  document.getElementById('email').value = '';
+  document.getElementById('password').value = '';
+  showLogin();
+}
+
+// ── Init: check existing session ────────────────────
+
+(async function init() {
+  const token = getToken();
+  if (!token) { showLogin(); return; }
+  try {
+    const me = await apiFetch('/api/auth/me');
+    showDashboard(me);
+  } catch (_) {
+    clearToken();
+    showLogin();
+  }
+})();
+</script>
+</body>
+</html>

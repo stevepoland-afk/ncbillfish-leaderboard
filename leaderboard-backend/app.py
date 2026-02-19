@@ -594,7 +594,11 @@ def login(req: LoginRequest):
 @app.get("/api/auth/me")
 def auth_me(user: dict = Depends(get_current_user)):
     with get_db() as conn:
-        row = conn.execute("SELECT id, email, role, series_id FROM users WHERE id = ?", (int(user["sub"]),)).fetchone()
+        row = conn.execute(
+            "SELECT u.id, u.email, u.role, u.series_id, s.slug as series_slug, s.name as series_name "
+            "FROM users u JOIN series s ON u.series_id = s.id WHERE u.id = ?",
+            (int(user["sub"]),)
+        ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
         return dict(row)
@@ -1502,6 +1506,18 @@ def startup():
                 )
                 conn.commit()
                 print(f"Default admin created: {DEFAULT_ADMIN_EMAIL}")
+
+
+# ============================================================================
+# Admin Landing Page
+# ============================================================================
+
+@app.get("/admin")
+def serve_admin_landing():
+    html_path = os.path.join(PARENT_DIR, "admin.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    return HTMLResponse("<h1>Admin portal not found</h1>")
 
 
 # ============================================================================

@@ -961,6 +961,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (IS_EMBED) document.body.classList.add('embed-mode');
   if (IS_KIOSK) document.body.classList.add('kiosk-mode');
 
+  // Accept token from admin landing page via query param
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _incomingToken = _urlParams.get('token');
+  const _targetTab = _urlParams.get('tab');
+  if (_incomingToken && !IS_EMBED) {
+    AUTH_TOKEN = _incomingToken;
+    sessionStorage.setItem(TOKEN_KEY, AUTH_TOKEN);
+    // Clean URL without reloading
+    const _cleanUrl = window.location.pathname + (IS_KIOSK ? '?mode=kiosk' : '');
+    window.history.replaceState({}, '', _cleanUrl);
+  }
+
   // Check existing auth token (skip in embed mode)
   if (IS_EMBED) {
     AUTH_TOKEN = null;
@@ -1026,6 +1038,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     adminInitialized = true;
     if (USER_ROLE === 'super_admin') {
       initSuperAdminHandlers();
+    }
+    // Auto-switch to target tab if passed from admin landing page
+    if (_targetTab) {
+      const targetTabEl = document.querySelector('#adminTabs li[data-tab="' + _targetTab + '"]');
+      if (targetTabEl) targetTabEl.click();
     }
   }
   updateAdminUI();
@@ -1118,7 +1135,10 @@ function applySeriesBranding(series) {
     // Watermark
     root.style.setProperty('--watermark-url', "url('" + src + "')");
   } else {
+    logo.src = '';
+    logo.alt = '';
     logo.style.display = 'none';
+    root.style.setProperty('--watermark-url', 'none');
   }
 }
 
