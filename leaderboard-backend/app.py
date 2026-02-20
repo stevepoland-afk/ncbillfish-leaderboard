@@ -184,11 +184,62 @@ def init_database():
         )
     """)
 
-    # Migration: add branding columns to existing databases
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS tournament_participation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_id INTEGER NOT NULL,
+            tournament_id INTEGER NOT NULL,
+            participant_id INTEGER NOT NULL,
+            participated INTEGER DEFAULT 0,
+            release_time TEXT,
+            verified INTEGER DEFAULT 0,
+            UNIQUE(tournament_id, participant_id),
+            FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE,
+            FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+            FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE CASCADE
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS weight_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_id INTEGER NOT NULL,
+            tournament_id INTEGER NOT NULL,
+            participant_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            weight REAL NOT NULL,
+            angler_name TEXT,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE,
+            FOREIGN KEY (tournament_id) REFERENCES tournaments(id) ON DELETE CASCADE,
+            FOREIGN KEY (participant_id) REFERENCES participants(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS leaderboard_panels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            panel_type TEXT NOT NULL DEFAULT 'custom',
+            content_json TEXT,
+            visible INTEGER DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE
+        )
+    """)
+
+    # Migration: add columns to existing databases
     for col_sql in [
         "ALTER TABLE series ADD COLUMN primary_color TEXT DEFAULT '#0e8a7d'",
         "ALTER TABLE series ADD COLUMN accent_color TEXT DEFAULT '#b07d3a'",
         "ALTER TABLE series ADD COLUMN is_single_tournament INTEGER DEFAULT 0",
+        "ALTER TABLE participants ADD COLUMN email TEXT",
+        "ALTER TABLE categories ADD COLUMN include_in_overall INTEGER DEFAULT NULL",
+        "ALTER TABLE categories ADD COLUMN points_per_fish REAL DEFAULT NULL",
+        "ALTER TABLE points ADD COLUMN fish_count INTEGER DEFAULT NULL",
     ]:
         try:
             c.execute(col_sql)
@@ -266,6 +317,8 @@ class CategoryCreate(BaseModel):
     applies_to: Optional[str] = None
     unit: Optional[str] = "pts"
     sort_order: Optional[int] = 0
+    include_in_overall: Optional[bool] = None
+    points_per_fish: Optional[float] = None
 
 class ScoringRuleCreate(BaseModel):
     label: str
@@ -291,6 +344,7 @@ class ParticipantCreate(BaseModel):
     homeport: Optional[str] = None
     photo: Optional[str] = None
     website: Optional[str] = None
+    email: Optional[str] = None
 
 class ParticipantUpdate(BaseModel):
     boat_name: Optional[str] = None
@@ -304,6 +358,7 @@ class ParticipantUpdate(BaseModel):
     homeport: Optional[str] = None
     photo: Optional[str] = None
     website: Optional[str] = None
+    email: Optional[str] = None
 
 class PointEntry(BaseModel):
     tournament_id: int
@@ -311,9 +366,41 @@ class PointEntry(BaseModel):
     category_id: int
     points: float
     notes: Optional[str] = None
+    fish_count: Optional[int] = None
 
 class PointsBatch(BaseModel):
     points: List[PointEntry]
+
+class TournamentParticipationEntry(BaseModel):
+    tournament_id: int
+    participant_id: int
+    participated: Optional[bool] = None
+    release_time: Optional[str] = None
+    verified: Optional[bool] = None
+
+class TournamentParticipationBatch(BaseModel):
+    entries: List[TournamentParticipationEntry]
+
+class WeightEntryCreate(BaseModel):
+    tournament_id: int
+    participant_id: int
+    category_id: int
+    weight: float
+    angler_name: Optional[str] = None
+    notes: Optional[str] = None
+
+class LeaderboardPanelCreate(BaseModel):
+    title: str
+    panel_type: Optional[str] = "custom"
+    content_json: Optional[str] = None
+    visible: Optional[bool] = True
+    sort_order: Optional[int] = 0
+
+class LeaderboardPanelUpdate(BaseModel):
+    title: Optional[str] = None
+    content_json: Optional[str] = None
+    visible: Optional[bool] = None
+    sort_order: Optional[int] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -322,6 +409,27 @@ class LoginRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
+
+
+# ============================================================================
+# Leaderboard Panel Seeding
+# ============================================================================
+
+def seed_default_panels(conn, series_id):
+    """Create default Scoring Reference and Release Totals panels if none exist for this series."""
+    count = conn.execute(
+        "SELECT COUNT(*) as cnt FROM leaderboard_panels WHERE series_id = ?", (series_id,)
+    ).fetchone()["cnt"]
+    if count == 0:
+        conn.execute(
+            "INSERT INTO leaderboard_panels (series_id, title, panel_type, visible, sort_order) VALUES (?, ?, ?, ?, ?)",
+            (series_id, "Scoring Reference", "scoring_reference", 1, 0),
+        )
+        conn.execute(
+            "INSERT INTO leaderboard_panels (series_id, title, panel_type, visible, sort_order) VALUES (?, ?, ?, ?, ?)",
+            (series_id, "Series Release Totals", "release_totals", 1, 1),
+        )
+        conn.commit()
 
 
 # ============================================================================
@@ -423,6 +531,17 @@ def compute_standings(
         ).fetchall()
     ]
 
+    all_tp = [
+        dict(r) for r in conn.execute(
+            "SELECT * FROM tournament_participation WHERE series_id = ?", (series_id,)
+        ).fetchall()
+    ]
+    has_any_tp = len(all_tp) > 0
+    # Build lookup: (tournament_id, participant_id) -> tp record
+    tp_lookup = {}
+    for tp in all_tp:
+        tp_lookup[(tp["tournament_id"], tp["participant_id"])] = tp
+
     # Helpers
     boats = [p for p in all_participants if p["participant_type"] == "boat"]
     def get_individuals(ptype):
@@ -437,9 +556,18 @@ def compute_standings(
     unit = "pts"
     selected_cat = None
 
+    def is_overall_cat(c):
+        """Check if a category counts toward overall standings."""
+        inc = c.get("include_in_overall")
+        if inc == 1:
+            return True
+        if inc is not None and inc != 1:
+            return False
+        return not c["is_standalone"]
+
     if category_filter == "overall":
         candidates = list(boats)
-        relevant_cat_ids = [c["id"] for c in categories if not c["is_standalone"]]
+        relevant_cat_ids = [c["id"] for c in categories if is_overall_cat(c)]
         use_participation = True
     else:
         try:
@@ -459,12 +587,12 @@ def compute_standings(
         if selected_cat.get("applies_to") in ("sonar", "non_sonar"):
             want_sonar = 1 if selected_cat["applies_to"] == "sonar" else 0
             candidates = [b for b in boats if b["sonar"] == want_sonar]
-            relevant_cat_ids = [c["id"] for c in categories if not c["is_standalone"]]
+            relevant_cat_ids = [c["id"] for c in categories if is_overall_cat(c)]
             use_participation = True
         elif selected_cat.get("applies_to"):
             candidates = get_individuals(selected_cat["applies_to"])
             is_individual_view = True
-            relevant_cat_ids = [c["id"] for c in categories if not c["is_standalone"]]
+            relevant_cat_ids = [c["id"] for c in categories if is_overall_cat(c)]
             use_participation = True
         else:
             candidates = list(boats)
@@ -511,9 +639,13 @@ def compute_standings(
             "tournamentsEntered": 0,
             "counted": {},
             "participationBonus": 0,
+            "tournamentVerified": {},
+            "tournamentFishCounts": {},
         }
         if is_single:
             row["categoryPoints"] = {}
+
+        latest_release_time = None
 
         for tid in tourn_ids:
             pts = [
@@ -524,15 +656,36 @@ def compute_standings(
             ]
             total = sum(p["points"] for p in pts)
             row["tournamentPoints"][str(tid)] = total
-            if total > 0:
+
+            # Tournament participation: explicit checkbox OR has scores
+            tp = tp_lookup.get((tid, part["id"]))
+            if tp and tp["participated"]:
                 row["tournamentsEntered"] += 1
+            elif total > 0:
+                # Auto-count as participated if they have any scores recorded
+                row["tournamentsEntered"] += 1
+
+            # Track verification status
+            if tp:
+                row["tournamentVerified"][str(tid)] = bool(tp["verified"])
+                if tp.get("release_time"):
+                    latest_release_time = max(latest_release_time or "", tp["release_time"])
+
             row["totalAll"] += total
+
+            # Per-category fish count breakdowns
+            for p in pts:
+                if p.get("fish_count") is not None:
+                    key = f"{tid}_{p['category_id']}"
+                    row["tournamentFishCounts"][key] = p["fish_count"]
 
             # Per-category breakdowns for single-tournament mode
             if is_single:
                 for p in pts:
                     cid = str(p["category_id"])
                     row["categoryPoints"][cid] = row["categoryPoints"].get(cid, 0) + p["points"]
+
+        row["latestReleaseTime"] = latest_release_time or "99:99"
 
         # Best-of-N
         scored = [
@@ -552,12 +705,19 @@ def compute_standings(
 
         standings.append(row)
 
-    # Sort
-    standings.sort(key=lambda r: (-r["bestOfScore"], -r["totalAll"]))
+    # Sort with release time tiebreaker (earlier release time wins)
+    standings.sort(key=lambda r: (
+        -r["bestOfScore"],
+        -r["totalAll"],
+        r.get("latestReleaseTime", "99:99"),
+    ))
 
-    # Assign ranks with tie handling
+    # Assign ranks with tie handling (include release time in tie check)
     for i, s in enumerate(standings):
-        if i > 0 and s["bestOfScore"] == standings[i-1]["bestOfScore"] and s["totalAll"] == standings[i-1]["totalAll"]:
+        if (i > 0
+            and s["bestOfScore"] == standings[i-1]["bestOfScore"]
+            and s["totalAll"] == standings[i-1]["totalAll"]
+            and s.get("latestReleaseTime", "99:99") == standings[i-1].get("latestReleaseTime", "99:99")):
             s["rank"] = standings[i-1]["rank"]
         else:
             s["rank"] = i + 1
@@ -646,7 +806,9 @@ def admin_create_series(data: SeriesCreate, user: dict = Depends(require_super_a
              1 if data.is_single_tournament else 0),
         )
         conn.commit()
-        return dict(conn.execute("SELECT * FROM series WHERE slug = ?", (data.slug,)).fetchone())
+        new_series = conn.execute("SELECT * FROM series WHERE slug = ?", (data.slug,)).fetchone()
+        seed_default_panels(conn, new_series["id"])
+        return dict(new_series)
 
 
 @app.delete("/api/admin/series/{slug}")
@@ -656,9 +818,12 @@ def admin_delete_series(slug: str, user: dict = Depends(require_super_admin)):
         if not series:
             raise HTTPException(status_code=404, detail="Series not found")
         sid = series["id"]
+        conn.execute("DELETE FROM weight_entries WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM tournament_participation WHERE series_id = ?", (sid,))
         conn.execute("DELETE FROM points WHERE series_id = ?", (sid,))
         conn.execute("DELETE FROM participants WHERE series_id = ?", (sid,))
         conn.execute("DELETE FROM categories WHERE series_id = ?", (sid,))
+        conn.execute("DELETE FROM leaderboard_panels WHERE series_id = ?", (sid,))
         conn.execute("DELETE FROM scoring_rules WHERE series_id = ?", (sid,))
         conn.execute("DELETE FROM tournaments WHERE series_id = ?", (sid,))
         conn.execute("DELETE FROM users WHERE series_id = ?", (sid,))
@@ -757,10 +922,14 @@ def create_category(slug: str, data: CategoryCreate, user: dict = Depends(get_cu
         s = get_series_by_slug(slug, conn)
         if user["role"] != "super_admin" and user["series_id"] != s["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
+        inc_overall = None
+        if data.include_in_overall is not None:
+            inc_overall = 1 if data.include_in_overall else 0
         cur = conn.execute(
-            "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order, include_in_overall, points_per_fish) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (s["id"], data.name, data.category_group, data.scoring_type,
-             1 if data.is_standalone else 0, data.applies_to, data.unit, data.sort_order),
+             1 if data.is_standalone else 0, data.applies_to, data.unit, data.sort_order,
+             inc_overall, data.points_per_fish),
         )
         conn.commit()
         return dict(conn.execute("SELECT * FROM categories WHERE id = ?", (cur.lastrowid,)).fetchone())
@@ -970,11 +1139,11 @@ def create_participant(slug: str, data: ParticipantCreate, user: dict = Depends(
         cur = conn.execute(
             """INSERT INTO participants
                (series_id, boat_name, captain, owner, angler_name, participant_type,
-                boat_type, boat_id, sonar, homeport, photo, website)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                boat_type, boat_id, sonar, homeport, photo, website, email)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (s["id"], data.boat_name, data.captain, data.owner, data.angler_name,
              data.participant_type, data.boat_type, data.boat_id,
-             1 if data.sonar else 0, data.homeport, data.photo, data.website),
+             1 if data.sonar else 0, data.homeport, data.photo, data.website, data.email),
         )
         conn.commit()
         return dict(conn.execute("SELECT * FROM participants WHERE id = ?", (cur.lastrowid,)).fetchone())
@@ -1032,28 +1201,42 @@ def upsert_points(slug: str, data: PointsBatch, user: dict = Depends(get_current
         s = get_series_by_slug(slug, conn)
         if user["role"] != "super_admin" and user["series_id"] != s["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
+        # Build category lookup for fish_count auto-calc
+        cat_lookup = {}
+        cat_rows = conn.execute("SELECT id, points_per_fish FROM categories WHERE series_id = ?", (s["id"],)).fetchall()
+        for cr in cat_rows:
+            cat_lookup[cr["id"]] = dict(cr)
+
         inserted = 0
         updated = 0
         deleted = 0
         for entry in data.points:
+            actual_points = entry.points
+            fish_count = entry.fish_count
+
+            # Auto-calculate points from fish_count if category has points_per_fish
+            cat_info = cat_lookup.get(entry.category_id)
+            if fish_count is not None and cat_info and cat_info.get("points_per_fish"):
+                actual_points = fish_count * cat_info["points_per_fish"]
+
             existing = conn.execute(
                 "SELECT id FROM points WHERE tournament_id = ? AND participant_id = ? AND category_id = ?",
                 (entry.tournament_id, entry.participant_id, entry.category_id),
             ).fetchone()
-            if entry.points <= 0:
+            if actual_points <= 0 and (fish_count is None or fish_count <= 0):
                 if existing:
                     conn.execute("DELETE FROM points WHERE id = ?", (existing["id"],))
                     deleted += 1
             elif existing:
                 conn.execute(
-                    "UPDATE points SET points = ?, notes = ? WHERE id = ?",
-                    (entry.points, entry.notes, existing["id"]),
+                    "UPDATE points SET points = ?, notes = ?, fish_count = ? WHERE id = ?",
+                    (actual_points, entry.notes, fish_count, existing["id"]),
                 )
                 updated += 1
             else:
                 conn.execute(
-                    "INSERT INTO points (series_id, tournament_id, participant_id, category_id, points, notes) VALUES (?, ?, ?, ?, ?, ?)",
-                    (s["id"], entry.tournament_id, entry.participant_id, entry.category_id, entry.points, entry.notes),
+                    "INSERT INTO points (series_id, tournament_id, participant_id, category_id, points, notes, fish_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (s["id"], entry.tournament_id, entry.participant_id, entry.category_id, actual_points, entry.notes, fish_count),
                 )
                 inserted += 1
         conn.commit()
@@ -1072,6 +1255,391 @@ def delete_point(slug: str, point_id: int, user: dict = Depends(get_current_user
         conn.commit()
         if not affected:
             raise HTTPException(status_code=404, detail="Point entry not found")
+        return {"deleted": True}
+
+
+# ============================================================================
+# Tournament Participation Endpoints
+# ============================================================================
+
+@app.get("/api/{slug}/tournament-participation")
+def list_tournament_participation(slug: str):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        rows = conn.execute(
+            "SELECT * FROM tournament_participation WHERE series_id = ?", (s["id"],)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.put("/api/{slug}/tournament-participation/{tid}/{pid}")
+def upsert_tournament_participation(
+    slug: str, tid: int, pid: int,
+    data: TournamentParticipationEntry,
+    user: dict = Depends(get_current_user),
+):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        existing = conn.execute(
+            "SELECT * FROM tournament_participation WHERE tournament_id = ? AND participant_id = ?",
+            (tid, pid),
+        ).fetchone()
+        if existing:
+            updates = {}
+            if data.participated is not None:
+                updates["participated"] = 1 if data.participated else 0
+            if data.release_time is not None:
+                updates["release_time"] = data.release_time
+            if data.verified is not None:
+                updates["verified"] = 1 if data.verified else 0
+            if updates:
+                set_clause = ", ".join(f"{k} = ?" for k in updates)
+                vals = list(updates.values()) + [existing["id"]]
+                conn.execute(f"UPDATE tournament_participation SET {set_clause} WHERE id = ?", vals)
+        else:
+            conn.execute(
+                "INSERT INTO tournament_participation (series_id, tournament_id, participant_id, participated, release_time, verified) VALUES (?, ?, ?, ?, ?, ?)",
+                (s["id"], tid, pid,
+                 1 if data.participated else 0,
+                 data.release_time,
+                 1 if data.verified else 0),
+            )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM tournament_participation WHERE tournament_id = ? AND participant_id = ?",
+            (tid, pid),
+        ).fetchone()
+        return dict(row)
+
+
+@app.post("/api/{slug}/tournament-participation/batch")
+def batch_tournament_participation(
+    slug: str, data: TournamentParticipationBatch,
+    user: dict = Depends(get_current_user),
+):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        upserted = 0
+        for entry in data.entries:
+            existing = conn.execute(
+                "SELECT * FROM tournament_participation WHERE tournament_id = ? AND participant_id = ?",
+                (entry.tournament_id, entry.participant_id),
+            ).fetchone()
+            if existing:
+                updates = {}
+                if entry.participated is not None:
+                    updates["participated"] = 1 if entry.participated else 0
+                if entry.release_time is not None:
+                    updates["release_time"] = entry.release_time
+                if entry.verified is not None:
+                    updates["verified"] = 1 if entry.verified else 0
+                if updates:
+                    set_clause = ", ".join(f"{k} = ?" for k in updates)
+                    vals = list(updates.values()) + [existing["id"]]
+                    conn.execute(f"UPDATE tournament_participation SET {set_clause} WHERE id = ?", vals)
+                    upserted += 1
+            else:
+                conn.execute(
+                    "INSERT INTO tournament_participation (series_id, tournament_id, participant_id, participated, release_time, verified) VALUES (?, ?, ?, ?, ?, ?)",
+                    (s["id"], entry.tournament_id, entry.participant_id,
+                     1 if entry.participated else 0,
+                     entry.release_time,
+                     1 if entry.verified else 0),
+                )
+                upserted += 1
+        conn.commit()
+        return {"upserted": upserted}
+
+
+@app.post("/api/{slug}/tournament-participation/verify/{tid}")
+def verify_tournament(slug: str, tid: int, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        conn.execute(
+            "UPDATE tournament_participation SET verified = 1 WHERE series_id = ? AND tournament_id = ?",
+            (s["id"], tid),
+        )
+        conn.commit()
+        return {"verified": True, "tournament_id": tid}
+
+
+# ============================================================================
+# Weight Entries Endpoints
+# ============================================================================
+
+@app.post("/api/{slug}/weight-entries")
+def add_weight_entry(slug: str, data: WeightEntryCreate, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        conn.execute(
+            "INSERT INTO weight_entries (series_id, tournament_id, participant_id, category_id, weight, angler_name, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (s["id"], data.tournament_id, data.participant_id, data.category_id,
+             data.weight, data.angler_name, data.notes),
+        )
+        # Update points table with MAX weight
+        max_row = conn.execute(
+            "SELECT MAX(weight) as max_w FROM weight_entries WHERE series_id = ? AND tournament_id = ? AND participant_id = ? AND category_id = ?",
+            (s["id"], data.tournament_id, data.participant_id, data.category_id),
+        ).fetchone()
+        max_weight = max_row["max_w"] if max_row else data.weight
+        existing_pt = conn.execute(
+            "SELECT id FROM points WHERE tournament_id = ? AND participant_id = ? AND category_id = ?",
+            (data.tournament_id, data.participant_id, data.category_id),
+        ).fetchone()
+        if existing_pt:
+            conn.execute("UPDATE points SET points = ? WHERE id = ?", (max_weight, existing_pt["id"]))
+        else:
+            conn.execute(
+                "INSERT INTO points (series_id, tournament_id, participant_id, category_id, points) VALUES (?, ?, ?, ?, ?)",
+                (s["id"], data.tournament_id, data.participant_id, data.category_id, max_weight),
+            )
+        conn.commit()
+        return {"max_weight": max_weight}
+
+
+@app.get("/api/{slug}/weight-entries")
+def list_weight_entries(
+    slug: str,
+    tournament_id: Optional[int] = None,
+    participant_id: Optional[int] = None,
+    category_id: Optional[int] = None,
+):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        query = "SELECT * FROM weight_entries WHERE series_id = ?"
+        params = [s["id"]]
+        if tournament_id:
+            query += " AND tournament_id = ?"
+            params.append(tournament_id)
+        if participant_id:
+            query += " AND participant_id = ?"
+            params.append(participant_id)
+        if category_id:
+            query += " AND category_id = ?"
+            params.append(category_id)
+        query += " ORDER BY created_at DESC"
+        rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.delete("/api/{slug}/weight-entries/{entry_id}")
+def delete_weight_entry(slug: str, entry_id: int, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        entry = conn.execute(
+            "SELECT * FROM weight_entries WHERE id = ? AND series_id = ?", (entry_id, s["id"])
+        ).fetchone()
+        if not entry:
+            raise HTTPException(status_code=404, detail="Weight entry not found")
+        conn.execute("DELETE FROM weight_entries WHERE id = ?", (entry_id,))
+        # Recalculate max for this combination
+        max_row = conn.execute(
+            "SELECT MAX(weight) as max_w FROM weight_entries WHERE series_id = ? AND tournament_id = ? AND participant_id = ? AND category_id = ?",
+            (s["id"], entry["tournament_id"], entry["participant_id"], entry["category_id"]),
+        ).fetchone()
+        if max_row and max_row["max_w"] is not None:
+            conn.execute(
+                "UPDATE points SET points = ? WHERE tournament_id = ? AND participant_id = ? AND category_id = ?",
+                (max_row["max_w"], entry["tournament_id"], entry["participant_id"], entry["category_id"]),
+            )
+        else:
+            conn.execute(
+                "DELETE FROM points WHERE tournament_id = ? AND participant_id = ? AND category_id = ?",
+                (entry["tournament_id"], entry["participant_id"], entry["category_id"]),
+            )
+        conn.commit()
+        return {"deleted": True}
+
+
+# ============================================================================
+# Release Summary Endpoint
+# ============================================================================
+
+@app.get("/api/{slug}/release-summary/{tournament_id}")
+def release_summary(slug: str, tournament_id: int):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        categories = [dict(r) for r in conn.execute(
+            "SELECT * FROM categories WHERE series_id = ? AND points_per_fish IS NOT NULL ORDER BY sort_order",
+            (s["id"],),
+        ).fetchall()]
+        result = []
+        for cat in categories:
+            row = conn.execute(
+                "SELECT SUM(fish_count) as total_fish, SUM(points) as total_points FROM points WHERE series_id = ? AND tournament_id = ? AND category_id = ? AND fish_count IS NOT NULL",
+                (s["id"], tournament_id, cat["id"]),
+            ).fetchone()
+            result.append({
+                "category": cat["name"],
+                "category_id": cat["id"],
+                "total_fish": row["total_fish"] or 0,
+                "total_points": row["total_points"] or 0,
+            })
+        return result
+
+
+def _get_release_totals(conn, series_id):
+    """Helper: series-wide release totals across all tournaments, broken down by category and tournament."""
+    categories = [dict(r) for r in conn.execute(
+        "SELECT * FROM categories WHERE series_id = ? AND (points_per_fish IS NOT NULL OR category_group = 'Release') ORDER BY sort_order",
+        (series_id,),
+    ).fetchall()]
+    tournaments = [dict(r) for r in conn.execute(
+        "SELECT * FROM tournaments WHERE series_id = ? ORDER BY event_number", (series_id,)
+    ).fetchall()]
+    result = []
+    for cat in categories:
+        cat_totals = {"category": cat["name"], "category_id": cat["id"], "total_fish": 0, "total_points": 0, "by_tournament": []}
+        for t in tournaments:
+            row = conn.execute(
+                "SELECT COUNT(*) as entry_count, SUM(fish_count) as fish, SUM(points) as pts FROM points WHERE series_id = ? AND tournament_id = ? AND category_id = ? AND points > 0",
+                (series_id, t["id"], cat["id"]),
+            ).fetchone()
+            fish = row["fish"] or 0
+            pts = row["pts"] or 0
+            entries = row["entry_count"] or 0
+            cat_totals["by_tournament"].append({
+                "tournament_id": t["id"],
+                "tournament_name": t["event_name"],
+                "event_number": t["event_number"],
+                "fish_count": fish,
+                "points": pts,
+                "entries": entries,
+            })
+            cat_totals["total_fish"] += fish
+            cat_totals["total_points"] += pts
+        result.append(cat_totals)
+    return result
+
+
+@app.get("/api/{slug}/release-totals")
+def release_totals(slug: str):
+    """Series-wide release totals across all tournaments, broken down by category and tournament."""
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        return _get_release_totals(conn, s["id"])
+
+
+# ============================================================================
+# Leaderboard Panels Endpoints
+# ============================================================================
+
+@app.get("/api/{slug}/leaderboard-panels")
+def list_leaderboard_panels(slug: str):
+    """Public: returns visible panels with resolved content."""
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        sid = s["id"]
+        panels = [dict(r) for r in conn.execute(
+            "SELECT * FROM leaderboard_panels WHERE series_id = ? AND visible = 1 ORDER BY sort_order",
+            (sid,),
+        ).fetchall()]
+        result = []
+        for p in panels:
+            item = {"id": p["id"], "title": p["title"], "panel_type": p["panel_type"], "sort_order": p["sort_order"]}
+            if p["panel_type"] == "scoring_reference":
+                rules = [dict(r) for r in conn.execute(
+                    "SELECT * FROM scoring_rules WHERE series_id = ? ORDER BY sort_order", (sid,)
+                ).fetchall()]
+                item["content"] = rules
+            elif p["panel_type"] == "release_totals":
+                item["content"] = _get_release_totals(conn, sid)
+            else:
+                try:
+                    item["content"] = json.loads(p["content_json"]) if p["content_json"] else []
+                except (json.JSONDecodeError, TypeError):
+                    item["content"] = []
+            result.append(item)
+        return result
+
+
+@app.get("/api/{slug}/leaderboard-panels/admin")
+def list_leaderboard_panels_admin(slug: str, user: dict = Depends(get_current_user)):
+    """Admin: returns ALL panels (including hidden), raw metadata."""
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        panels = [dict(r) for r in conn.execute(
+            "SELECT * FROM leaderboard_panels WHERE series_id = ? ORDER BY sort_order",
+            (s["id"],),
+        ).fetchall()]
+        return panels
+
+
+@app.post("/api/{slug}/leaderboard-panels")
+def create_leaderboard_panel(slug: str, data: LeaderboardPanelCreate, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        sid = s["id"]
+        # Prevent duplicate built-in types
+        if data.panel_type in ("scoring_reference", "release_totals"):
+            existing = conn.execute(
+                "SELECT id FROM leaderboard_panels WHERE series_id = ? AND panel_type = ?",
+                (sid, data.panel_type),
+            ).fetchone()
+            if existing:
+                raise HTTPException(status_code=409, detail=f"A {data.panel_type} panel already exists for this series")
+        cur = conn.execute(
+            "INSERT INTO leaderboard_panels (series_id, title, panel_type, content_json, visible, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+            (sid, data.title, data.panel_type, data.content_json,
+             1 if data.visible else 0, data.sort_order),
+        )
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM leaderboard_panels WHERE id = ?", (cur.lastrowid,)).fetchone())
+
+
+@app.put("/api/{slug}/leaderboard-panels/{pid}")
+def update_leaderboard_panel(slug: str, pid: int, data: LeaderboardPanelUpdate, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        existing = conn.execute(
+            "SELECT * FROM leaderboard_panels WHERE id = ? AND series_id = ?", (pid, s["id"])
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Panel not found")
+        updates = {}
+        for k, v in data.model_dump().items():
+            if v is not None:
+                if k == "visible":
+                    updates[k] = 1 if v else 0
+                else:
+                    updates[k] = v
+        if not updates:
+            return dict(existing)
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        vals = list(updates.values()) + [pid]
+        conn.execute(f"UPDATE leaderboard_panels SET {set_clause} WHERE id = ?", vals)
+        conn.commit()
+        return dict(conn.execute("SELECT * FROM leaderboard_panels WHERE id = ?", (pid,)).fetchone())
+
+
+@app.delete("/api/{slug}/leaderboard-panels/{pid}")
+def delete_leaderboard_panel(slug: str, pid: int, user: dict = Depends(get_current_user)):
+    with get_db() as conn:
+        s = get_series_by_slug(slug, conn)
+        if user["role"] != "super_admin" and user["series_id"] != s["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        affected = conn.execute(
+            "DELETE FROM leaderboard_panels WHERE id = ? AND series_id = ?", (pid, s["id"])
+        ).rowcount
+        conn.commit()
+        if not affected:
+            raise HTTPException(status_code=404, detail="Panel not found")
         return {"deleted": True}
 
 
@@ -1109,11 +1677,15 @@ def download_template(slug: str, tournament_id: int, user: dict = Depends(get_cu
         boats = [p for p in participants if p["participant_type"] == "boat"]
         lady_anglers = [p for p in participants if p["participant_type"] == "lady_angler"]
         junior_anglers = [p for p in participants if p["participant_type"] == "junior_angler"]
+        junior_boys = [p for p in participants if p["participant_type"] == "junior_angler_boy"]
+        junior_girls = [p for p in participants if p["participant_type"] == "junior_angler_girl"]
 
         # Boats: categories with no applies_to; individuals: their specific applies_to category
         boat_cats = [c for c in categories if not c.get("applies_to")]
         lady_cats = [c for c in categories if c.get("applies_to") == "lady_angler"]
         junior_cats = [c for c in categories if c.get("applies_to") == "junior_angler"]
+        junior_boy_cats = [c for c in categories if c.get("applies_to") == "junior_angler_boy"]
+        junior_girl_cats = [c for c in categories if c.get("applies_to") == "junior_angler_girl"]
 
         wb = Workbook()
 
@@ -1179,6 +1751,16 @@ def download_template(slug: str, tournament_id: int, user: dict = Depends(get_cu
         # Junior Anglers sheet
         ws_junior = wb.create_sheet()
         build_sheet(ws_junior, "Junior Anglers", junior_anglers, junior_cats, "Angler Name", "Boat")
+
+        # Junior Angler Boy sheet
+        if junior_boys:
+            ws_jb = wb.create_sheet()
+            build_sheet(ws_jb, "Jr. Boys", junior_boys, junior_boy_cats or junior_cats, "Angler Name", "Boat")
+
+        # Junior Angler Girl sheet
+        if junior_girls:
+            ws_jg = wb.create_sheet()
+            build_sheet(ws_jg, "Jr. Girls", junior_girls, junior_girl_cats or junior_cats, "Angler Name", "Boat")
 
         # Write to bytes
         buf = io.BytesIO()
@@ -1353,10 +1935,14 @@ async def import_data(slug: str, request: Request, user: dict = Depends(get_curr
 
         # Categories
         for c in data.get("categories", []):
+            inc_overall = c.get("include_in_overall")
+            if inc_overall is not None:
+                inc_overall = 1 if inc_overall else 0
             cur = conn.execute(
-                "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order, include_in_overall, points_per_fish) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (series_id, c["name"], c.get("category_group"), c.get("scoring_type", "points"),
-                 1 if c.get("is_standalone") else 0, c.get("applies_to"), c.get("unit", "pts"), c.get("sort_order", 0)),
+                 1 if c.get("is_standalone") else 0, c.get("applies_to"), c.get("unit", "pts"), c.get("sort_order", 0),
+                 inc_overall, c.get("points_per_fish")),
             )
             cat_map[c["id"]] = cur.lastrowid
 
@@ -1368,11 +1954,11 @@ async def import_data(slug: str, request: Request, user: dict = Depends(get_curr
             cur = conn.execute(
                 """INSERT INTO participants
                    (series_id, boat_name, captain, owner, angler_name, participant_type,
-                    boat_type, boat_id, sonar, homeport, photo, website)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    boat_type, boat_id, sonar, homeport, photo, website, email)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (series_id, p.get("boat_name"), p.get("captain"), p.get("owner"),
                  p.get("angler_name"), "boat", p.get("boat_type"), None,
-                 1 if p.get("sonar") else 0, p.get("homeport"), p.get("photo"), p.get("website")),
+                 1 if p.get("sonar") else 0, p.get("homeport"), p.get("photo"), p.get("website"), p.get("email")),
             )
             part_map[p["id"]] = cur.lastrowid
 
@@ -1381,11 +1967,11 @@ async def import_data(slug: str, request: Request, user: dict = Depends(get_curr
             cur = conn.execute(
                 """INSERT INTO participants
                    (series_id, boat_name, captain, owner, angler_name, participant_type,
-                    boat_type, boat_id, sonar, homeport, photo, website)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    boat_type, boat_id, sonar, homeport, photo, website, email)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (series_id, p.get("boat_name"), p.get("captain"), p.get("owner"),
                  p.get("angler_name"), p.get("participant_type", "boat"), p.get("boat_type"),
-                 boat_ref, 1 if p.get("sonar") else 0, p.get("homeport"), p.get("photo"), p.get("website")),
+                 boat_ref, 1 if p.get("sonar") else 0, p.get("homeport"), p.get("photo"), p.get("website"), p.get("email")),
             )
             part_map[p["id"]] = cur.lastrowid
 
@@ -1396,9 +1982,23 @@ async def import_data(slug: str, request: Request, user: dict = Depends(get_curr
             cid = cat_map.get(pt["category_id"])
             if tid and pid and cid:
                 conn.execute(
-                    "INSERT INTO points (series_id, tournament_id, participant_id, category_id, points, notes) VALUES (?, ?, ?, ?, ?, ?)",
-                    (series_id, tid, pid, cid, pt["points"], pt.get("notes")),
+                    "INSERT INTO points (series_id, tournament_id, participant_id, category_id, points, notes, fish_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (series_id, tid, pid, cid, pt["points"], pt.get("notes"), pt.get("fish_count")),
                 )
+
+        # Leaderboard Panels
+        conn.execute("DELETE FROM leaderboard_panels WHERE series_id = ?", (series_id,))
+        if data.get("leaderboard_panels"):
+            for lp in data["leaderboard_panels"]:
+                conn.execute(
+                    "INSERT INTO leaderboard_panels (series_id, title, panel_type, content_json, visible, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+                    (series_id, lp["title"], lp.get("panel_type", "custom"),
+                     lp.get("content_json"), 1 if lp.get("visible", 1) else 0,
+                     lp.get("sort_order", 0)),
+                )
+        else:
+            # No panels in import data — seed defaults
+            seed_default_panels(conn, series_id)
 
         conn.commit()
         return {
@@ -1422,6 +2022,7 @@ def export_data(slug: str, user: dict = Depends(get_current_user)):
         categories = [dict(r) for r in conn.execute("SELECT * FROM categories WHERE series_id = ? ORDER BY sort_order", (sid,)).fetchall()]
         participants = [dict(r) for r in conn.execute("SELECT * FROM participants WHERE series_id = ?", (sid,)).fetchall()]
         points = [dict(r) for r in conn.execute("SELECT * FROM points WHERE series_id = ?", (sid,)).fetchall()]
+        leaderboard_panels = [dict(r) for r in conn.execute("SELECT * FROM leaderboard_panels WHERE series_id = ? ORDER BY sort_order", (sid,)).fetchall()]
 
         return {
             "series": {k: s[k] for k in ("name", "year", "description", "total_events", "best_of", "participation_points", "status")},
@@ -1429,6 +2030,7 @@ def export_data(slug: str, user: dict = Depends(get_current_user)):
             "categories": categories,
             "participants": participants,
             "points": points,
+            "leaderboard_panels": leaderboard_panels,
         }
 
 
@@ -1484,8 +2086,9 @@ def startup():
                     (seeded_series["id"], "Per tournament series fished", "50 pts", 0, 0),
                     (seeded_series["id"], "Per blue marlin released", "400 pts", 0, 1),
                     (seeded_series["id"], "Per white marlin, sailfish, or spearfish released", "125 pts", 0, 2),
-                    (seeded_series["id"], 'Per blue marlin landed (min 110" or 400 lbs)', "1 pt/lb", 0, 3),
-                    (seeded_series["id"], "Penalty for undersized fish", "-200 pts", 1, 4),
+                    (seeded_series["id"], "Per unverified blue marlin released", "125 pts", 0, 3),
+                    (seeded_series["id"], 'Per blue marlin landed (min 110" or 400 lbs)', "1 pt/lb", 0, 4),
+                    (seeded_series["id"], "Penalty for undersized fish", "-200 pts", 1, 5),
                 ]
                 conn.executemany(
                     "INSERT INTO scoring_rules (series_id, label, value, is_penalty, sort_order) VALUES (?, ?, ?, ?, ?)",
@@ -1493,6 +2096,11 @@ def startup():
                 )
             conn.commit()
             print(f"Seeded series: {SEED_SERIES_SLUG}")
+
+        # Seed default panels for all series that have none
+        all_series = conn.execute("SELECT id FROM series").fetchall()
+        for s_row in all_series:
+            seed_default_panels(conn, s_row["id"])
 
         # Create default admin if none exists
         existing_user = conn.execute("SELECT id FROM users WHERE email = ?", (DEFAULT_ADMIN_EMAIL,)).fetchone()

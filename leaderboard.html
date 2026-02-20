@@ -118,18 +118,20 @@ th, td { padding: 0.5rem 0.75rem; text-align: left; }
 }
 .view-info.visible { display: block; }
 
-/* ===== SCORING REFERENCE ===== */
-.scoring-ref {
+/* ===== LEADERBOARD PANELS (generic collapsible) ===== */
+.leaderboard-panel {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
   margin: 0 0 1rem; overflow: hidden;
 }
-.scoring-ref summary {
+.leaderboard-panel summary {
   padding: 0.6rem 1rem; cursor: pointer; font-size: 0.85rem; font-weight: 600;
   color: var(--gold); list-style: none; display: flex; align-items: center; gap: 0.5rem;
 }
-.scoring-ref summary::before { content: "\25B6"; font-size: 0.6rem; transition: transform 0.2s; }
-.scoring-ref[open] summary::before { transform: rotate(90deg); }
-.scoring-ref summary:hover { color: var(--gold-light); }
+.leaderboard-panel summary::before { content: "\25B6"; font-size: 0.6rem; transition: transform 0.2s; }
+.leaderboard-panel[open] summary::before { transform: rotate(90deg); }
+.leaderboard-panel summary:hover { color: var(--gold-light); }
+
+/* Scoring Reference content styles */
 .scoring-ref-grid {
   display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0 1rem 1rem;
 }
@@ -140,6 +142,41 @@ th, td { padding: 0.5rem 0.75rem; text-align: left; }
 .scoring-ref-value { font-size: 1.1rem; font-weight: 700; color: var(--seafoam); }
 .scoring-ref-label { font-size: 0.78rem; color: var(--gray-light); margin-top: 0.15rem; }
 .scoring-ref-item.penalty .scoring-ref-value { color: var(--coral); }
+
+/* Release Totals content styles */
+.release-totals-content { padding: 0 1rem 1rem; }
+.release-totals-cat { margin-bottom: 0.75rem; }
+.release-totals-cat-header {
+  font-size: 0.85rem; font-weight: 700; color: var(--seafoam); margin-bottom: 0.35rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.release-totals-cat-header .series-total {
+  font-size: 0.8rem; color: var(--gold-light); font-weight: 600;
+}
+.release-totals-tournaments {
+  display: flex; flex-wrap: wrap; gap: 0.5rem;
+}
+.release-totals-t {
+  background: var(--navy-mid); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.35rem 0.65rem; font-size: 0.78rem; min-width: 80px; text-align: center;
+}
+.release-totals-t .t-label { color: var(--gray-light); font-size: 0.7rem; }
+.release-totals-t .t-value { color: var(--text); font-weight: 600; }
+.release-totals-empty { color: var(--gray-light); font-size: 0.82rem; font-style: italic; padding: 0.5rem 0; }
+
+/* Custom panel content styles */
+.custom-panel-content { padding: 0 1rem 1rem; }
+.custom-panel-grid {
+  display: flex; flex-wrap: wrap; gap: 0.75rem;
+}
+.custom-panel-item {
+  background: var(--navy-mid); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.5rem 0.85rem; flex: 1; min-width: 160px;
+}
+.custom-panel-item .cp-value { font-size: 1.1rem; font-weight: 700; color: var(--seafoam); }
+.custom-panel-item .cp-label { font-size: 0.78rem; color: var(--gray-light); margin-top: 0.15rem; }
+.custom-panel-item.highlight .cp-value { color: var(--gold); }
+.custom-panel-item.penalty .cp-value { color: var(--coral); }
 
 /* ===== LEADERBOARD TABLE ===== */
 .leaderboard-wrap {
@@ -181,6 +218,18 @@ th, td { padding: 0.5rem 0.75rem; text-align: left; }
 .boat-type-badge.sonar { background: rgba(46,204,113,0.15); color: var(--success); }
 .boat-type-badge.non-sonar { background: rgba(243,156,18,0.15); color: var(--warning); }
 .angler-boat-link { font-size: 0.75rem; color: var(--gray); display: block; font-weight: 400; }
+.tournament-cell.tentative { position: relative; background: rgba(243,156,18,0.08); }
+.tournament-cell.tentative::after { content: '*'; color: var(--warning); font-weight: 700; font-size: 0.7rem; vertical-align: super; margin-left: 1px; }
+.tentative-legend { font-size: 0.75rem; color: var(--gray); padding: 0.3rem 0.75rem; text-align: right; }
+.tentative-legend span { color: var(--warning); font-weight: 700; }
+.fish-count-display { font-size: 0.7rem; color: var(--gray); display: block; }
+.results-search-wrap { margin-bottom: 0.75rem; position: relative; }
+.results-search-wrap input { width: 100%; padding: 0.5rem 0.75rem 0.5rem 2rem; }
+.results-search-wrap::before { content: "\1F50D"; position: absolute; left: 0.6rem; top: 50%; transform: translateY(-50%); font-size: 0.85rem; pointer-events: none; }
+.angler-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; padding: 0.4rem; background: var(--navy-mid); border-radius: var(--radius); }
+.angler-row input { flex: 1; }
+.angler-row select { min-width: 130px; }
+.angler-row .remove-angler { background: var(--coral); color: white; padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: var(--radius); cursor: pointer; border: none; }
 
 /* ===== MODALS ===== */
 .modal-overlay {
@@ -382,12 +431,12 @@ body.kiosk-mode .header-right { display: none !important; }
   <div class="container">
     <ul class="admin-tabs" id="adminTabs">
       <li data-tab="leaderboard" class="active">Leaderboard</li>
-      <li data-tab="enter-results">Enter Results</li>
-      <li data-tab="manage-boats">Manage Boats</li>
       <li data-tab="manage-tournaments">Manage Tournaments</li>
       <li data-tab="manage-categories">Manage Categories</li>
+      <li data-tab="manage-boats">Manage Boats</li>
+      <li data-tab="enter-results">Enter Results</li>
       <li data-tab="import-export">Import / Export</li>
-      <li data-tab="super-admin" id="superAdminTab" style="display:none;">Super Admin</li>
+      <li data-tab="super-admin" id="superAdminTab" style="display:none;">Admin</li>
     </ul>
   </div>
 </nav>
@@ -417,11 +466,8 @@ body.kiosk-mode .header-right { display: none !important; }
     <div class="view-info" id="viewInfo"></div>
   </div>
 
-  <!-- SCORING REFERENCE (dynamically populated) -->
-  <details class="scoring-ref" id="scoringRef">
-    <summary>Scoring Reference</summary>
-    <div class="scoring-ref-grid" id="scoringRefGrid"></div>
-  </details>
+  <!-- LEADERBOARD PANELS (dynamically populated from API) -->
+  <div id="leaderboardPanelsContainer" class="leaderboard-panels-container"></div>
 
   <!-- LEADERBOARD -->
   <div id="leaderboardPanel">
@@ -458,8 +504,10 @@ body.kiosk-mode .header-right { display: none !important; }
       </div>
       <div class="results-type-tabs" id="resultsTypeTabs">
         <div class="results-type-tab active" data-rtype="boats">Boats (Release &amp; Gamefish)</div>
+        <div class="results-type-tab" data-rtype="angler">Angler</div>
         <div class="results-type-tab" data-rtype="lady_angler">Lady Angler</div>
-        <div class="results-type-tab" data-rtype="junior_angler">Junior Angler</div>
+        <div class="results-type-tab" data-rtype="junior_angler_boy">Jr. Boy</div>
+        <div class="results-type-tab" data-rtype="junior_angler_girl">Jr. Girl</div>
       </div>
     </div>
     <div class="admin-card">
@@ -485,8 +533,14 @@ body.kiosk-mode .header-right { display: none !important; }
       <div class="form-row">
         <div class="form-group"><label>Home Port</label><input type="text" id="newBoatHomeport" placeholder="e.g. Hatteras, NC"></div>
         <div class="form-group"><label>Website</label><input type="url" id="newBoatWebsite" placeholder="https://..."></div>
+        <div class="form-group"><label>Email</label><input type="email" id="newBoatEmail" placeholder="captain@example.com"></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label>Photo</label><input type="file" id="newBoatPhoto" accept="image/*"></div>
       </div>
+      <div class="section-label" style="margin-top:0.5rem;">Anglers (optional — add with boat)</div>
+      <div id="newBoatAnglerRows"></div>
+      <button type="button" class="btn btn-secondary btn-sm" id="addAnglerRowBtn" style="margin-bottom:0.75rem;">+ Add Angler</button>
       <div class="btn-row"><button class="btn btn-primary" id="addBoatBtn">Add Boat</button></div>
     </div>
     <div class="admin-card">
@@ -495,9 +549,10 @@ body.kiosk-mode .header-right { display: none !important; }
         <div class="form-group"><label>Angler Name</label><input type="text" id="newAnglerName"></div>
         <div class="form-group"><label>Category</label>
           <select id="newAnglerType">
-            <option value="angler">None</option>
+            <option value="angler">Angler (no designation)</option>
             <option value="lady_angler">Lady Angler</option>
-            <option value="junior_angler">Junior Angler</option>
+            <option value="junior_angler_boy">Junior Angler - Boy</option>
+            <option value="junior_angler_girl">Junior Angler - Girl</option>
           </select>
         </div>
         <div class="form-group"><label>Boat</label>
@@ -532,6 +587,29 @@ body.kiosk-mode .header-right { display: none !important; }
   <!-- ADMIN: Manage Categories -->
   <div class="admin-panel" id="panel-manage-categories">
     <div class="admin-card">
+      <h3>Leaderboard Panels</h3>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">Manage the collapsible info panels shown above the leaderboard table.</p>
+      <div class="form-row">
+        <div class="form-group"><label>Title</label><input type="text" id="newPanelTitle" placeholder="e.g. Tournament Rules"></div>
+        <div class="form-group" style="max-width:180px;"><label>Type</label>
+          <select id="newPanelType">
+            <option value="custom">Custom</option>
+            <option value="scoring_reference">Scoring Reference</option>
+            <option value="release_totals">Release Totals</option>
+          </select>
+        </div>
+        <div class="form-group" style="max-width:80px;"><label>Order</label><input type="number" id="newPanelSort" min="0" value="0"></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" id="addPanelBtn">Add Panel</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Current Panels</h3>
+      <ul class="item-list" id="panelAdminList"></ul>
+    </div>
+    <!-- Dynamic per-panel item sections rendered by JS -->
+    <div id="panelItemSections"></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:0.5rem 0;">
+    <div class="admin-card">
       <h3>Scoring Reference Rules</h3>
       <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">These rules display in the public Scoring Reference panel.</p>
       <div class="form-row">
@@ -559,6 +637,10 @@ body.kiosk-mode .header-right { display: none !important; }
           </select>
         </div>
         <div class="form-group" style="max-width:100px;"><label>Sort Order</label><input type="number" id="newCatSort" min="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="max-width:140px;"><label>Points per Fish</label><input type="number" id="newCatPointsPerFish" min="0" step="any" placeholder="e.g. 400"></div>
+        <div class="form-group" style="max-width:180px;display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" id="newCatIncludeOverall"> Include in Overall</label></div>
       </div>
       <div class="btn-row"><button class="btn btn-primary" id="addCatBtn">Add Category</button></div>
     </div>
@@ -729,8 +811,10 @@ body.kiosk-mode .header-right { display: none !important; }
         <div class="form-group"><label>Angler Name</label><input type="text" id="editAnglerName"></div>
         <div class="form-group"><label>Category</label>
           <select id="editAnglerType">
+            <option value="angler">Angler (no designation)</option>
             <option value="lady_angler">Lady Angler</option>
-            <option value="junior_angler">Junior Angler</option>
+            <option value="junior_angler_boy">Junior Angler - Boy</option>
+            <option value="junior_angler_girl">Junior Angler - Girl</option>
           </select>
         </div>
         <div class="form-group"><label>Boat</label>
@@ -772,6 +856,7 @@ body.kiosk-mode .header-right { display: none !important; }
       </div>
       <div class="form-row">
         <div class="form-group"><label>Website</label><input type="url" id="editBoatWebsite" placeholder="https://..."></div>
+        <div class="form-group"><label>Email</label><input type="email" id="editBoatEmail" placeholder="captain@example.com"></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -1071,18 +1156,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ===== DATA =====
 async function loadData() {
   try {
-    const [series, tournaments, categories, participants, points, scoring_rules] = await Promise.all([
+    const [series, tournaments, categories, participants, points, scoring_rules, tournament_participation, leaderboard_panels] = await Promise.all([
       api(''),
       api('tournaments'),
       api('categories'),
       api('participants'),
       api('points'),
       api('scoring-rules'),
+      api('tournament-participation'),
+      api('leaderboard-panels'),
     ]);
-    DATA = { series, tournaments, categories, participants, points, scoring_rules };
+    DATA = { series, tournaments, categories, participants, points, scoring_rules, tournament_participation, leaderboard_panels };
   } catch(e) {
     console.error('Failed to load data:', e);
-    DATA = { series: { name:'Tournament Leaderboard', year:2026, description:'', total_events:8, best_of:3, participation_points:50, status:'active', updated_at:new Date().toISOString() }, tournaments:[], categories:[], participants:[], points:[], scoring_rules:[] };
+    DATA = { series: { name:'Tournament Leaderboard', year:2026, description:'', total_events:8, best_of:3, participation_points:50, status:'active', updated_at:new Date().toISOString() }, tournaments:[], categories:[], participants:[], points:[], scoring_rules:[], tournament_participation:[], leaderboard_panels:[] };
   }
 }
 
@@ -1098,7 +1185,7 @@ async function refreshData() {
   }
   updateTimestamp();
   populateCategoryFilter();
-  renderScoringRef();
+  renderLeaderboardPanels();
   if (IS_ADMIN) {
     document.getElementById('resultsTournament').innerHTML = DATA.tournaments.map(t =>
       `<option value="${t.id}">T${t.event_number}: ${escHtml(t.event_name)}</option>`
@@ -1166,7 +1253,7 @@ function initUI(params) {
   updateTimestamp();
 
   populateCategoryFilter();
-  renderScoringRef();
+  renderLeaderboardPanels();
 
   if (!initUI._bound) {
     document.getElementById('filterCategory').addEventListener('change', onCategoryChange);
@@ -1235,22 +1322,72 @@ function onCategoryChange() {
   renderAll();
 }
 
-// ===== SCORING REFERENCE =====
-function renderScoringRef() {
-  const ref = document.getElementById('scoringRef');
-  const grid = document.getElementById('scoringRefGrid');
-  const rules = (DATA.scoring_rules || []).sort((a, b) => a.sort_order - b.sort_order);
-  if (rules.length === 0) {
-    ref.style.display = 'none';
+// ===== LEADERBOARD PANELS =====
+function renderLeaderboardPanels() {
+  const container = document.getElementById('leaderboardPanelsContainer');
+  const panels = DATA.leaderboard_panels || [];
+  if (panels.length === 0) {
+    container.innerHTML = '';
     return;
   }
-  ref.style.display = '';
-  grid.innerHTML = rules.map(r =>
+  container.innerHTML = panels.map(p => {
+    let contentHtml = '';
+    if (p.panel_type === 'scoring_reference') {
+      contentHtml = renderScoringRefContent(p.content);
+    } else if (p.panel_type === 'release_totals') {
+      contentHtml = renderReleaseTotalsContent(p.content);
+    } else {
+      contentHtml = renderCustomPanelContent(p.content);
+    }
+    if (!contentHtml) return '';
+    return `<details class="leaderboard-panel" data-panel-id="${p.id}">
+      <summary>${escHtml(p.title)}</summary>
+      ${contentHtml}
+    </details>`;
+  }).join('');
+}
+
+function renderScoringRefContent(rules) {
+  if (!rules || rules.length === 0) return '';
+  return `<div class="scoring-ref-grid">${rules.map(r =>
     `<div class="scoring-ref-item${r.is_penalty ? ' penalty' : ''}">
       <div class="scoring-ref-value">${escHtml(r.value)}</div>
       <div class="scoring-ref-label">${escHtml(r.label)}</div>
     </div>`
-  ).join('');
+  ).join('')}</div>`;
+}
+
+function renderReleaseTotalsContent(data) {
+  if (!data || data.length === 0) return '';
+  const withData = data.filter(c => c.total_fish > 0 || c.total_points > 0 || (c.by_tournament && c.by_tournament.some(t => t.entries > 0)));
+  if (withData.length === 0) {
+    return '<div class="release-totals-content"><div class="release-totals-empty">No release data recorded yet.</div></div>';
+  }
+  return `<div class="release-totals-content">${withData.map(cat => {
+    const tourns = (cat.by_tournament || []).filter(t => t.entries > 0);
+    return `<div class="release-totals-cat">
+      <div class="release-totals-cat-header">
+        <span>${escHtml(cat.category)}</span>
+        <span class="series-total">${cat.total_fish} releases &mdash; ${Number(cat.total_points).toLocaleString()} pts</span>
+      </div>
+      <div class="release-totals-tournaments">
+        ${tourns.map(t => `<div class="release-totals-t">
+          <div class="t-label">T${t.event_number}</div>
+          <div class="t-value">${t.fish_count} fish</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderCustomPanelContent(items) {
+  if (!items || items.length === 0) return '<div class="custom-panel-content" style="color:var(--gray-light);font-size:0.82rem;font-style:italic;padding:0.5rem 1rem 1rem;">No items configured.</div>';
+  return `<div class="custom-panel-content"><div class="custom-panel-grid">${items.map(item =>
+    `<div class="custom-panel-item${item.style === 'highlight' ? ' highlight' : ''}${item.style === 'penalty' ? ' penalty' : ''}">
+      <div class="cp-value">${escHtml(item.value || '')}</div>
+      <div class="cp-label">${escHtml(item.label || '')}</div>
+    </div>`
+  ).join('')}</div></div>`;
 }
 
 // ===== RENDER =====
@@ -1306,6 +1443,7 @@ function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit
   empty.style.display = 'none';
 
   let bh = '';
+  let hasTentative = false;
   for (const row of standings) {
     const p = row.participant;
     const medal = row.rank === 1 ? '<span class="medal">&#x1F947;</span>' : row.rank === 2 ? '<span class="medal">&#x1F948;</span>' : row.rank === 3 ? '<span class="medal">&#x1F949;</span>' : '';
@@ -1326,7 +1464,6 @@ function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit
     }
 
     if (isSingle && scoreCats.length > 0) {
-      // Show per-category point cells
       for (const cat of scoreCats) {
         const pts = (row.categoryPoints || {})[String(cat.id)] || 0;
         const cls = pts === 0 ? 'no-entry' : 'counted';
@@ -1340,9 +1477,31 @@ function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit
       for (const t of tournaments) {
         const pts = row.tournamentPoints[String(t.id)] || 0;
         const isCounted = row.counted[String(t.id)];
-        const cls = pts === 0 ? 'no-entry' : (isSingle ? 'counted' : (isCounted ? 'counted' : 'not-counted'));
+        const isVerified = (row.tournamentVerified || {})[String(t.id)];
+        const tentative = pts > 0 && isVerified === false;
+        let cls = pts === 0 ? 'no-entry' : (isSingle ? 'counted' : (isCounted ? 'counted' : 'not-counted'));
+        if (tentative) cls += ' tentative';
+        if (tentative) hasTentative = true;
         let display = '&mdash;';
-        if (pts > 0) display = isWeight ? pts.toLocaleString() + '<span class="unit-suffix">lbs</span>' : pts.toLocaleString();
+        if (pts > 0) {
+          // Show fish count breakdown if available
+          const fishCounts = row.tournamentFishCounts || {};
+          const fishKeys = Object.keys(fishCounts).filter(k => k.startsWith(t.id + '_'));
+          if (fishKeys.length > 0 && !isWeight) {
+            const fishParts = fishKeys.map(k => {
+              const cid = k.split('_')[1];
+              const cat = DATA.categories.find(c => c.id == cid);
+              const ppf = cat ? cat.points_per_fish : null;
+              const fc = fishCounts[k];
+              return ppf ? `${fc}\u00d7${ppf}` : null;
+            }).filter(Boolean);
+            display = fishParts.length > 0
+              ? `<span class="fish-count-display">(${fishParts.join('+')})</span>${pts.toLocaleString()}`
+              : pts.toLocaleString();
+          } else {
+            display = isWeight ? pts.toLocaleString() + '<span class="unit-suffix">lbs</span>' : pts.toLocaleString();
+          }
+        }
         bh += `<td class="tournament-cell ${cls} hide-mobile">${display}</td>`;
       }
 
@@ -1359,6 +1518,16 @@ function renderLeaderboardTable({ standings, tournaments, isIndividualView, unit
     bh += '</tr>';
   }
   tbody.innerHTML = bh;
+
+  // Add tentative legend if needed
+  const existingLegend = document.querySelector('.tentative-legend');
+  if (existingLegend) existingLegend.remove();
+  if (hasTentative) {
+    const legend = document.createElement('div');
+    legend.className = 'tentative-legend';
+    legend.innerHTML = '<span>*</span> = Tentative/unverified scores';
+    document.querySelector('.leaderboard-wrap').appendChild(legend);
+  }
 
   tbody.querySelectorAll('.name-cell').forEach(td => {
     td.addEventListener('click', () => showDetailModal(parseInt(td.dataset.pid)));
@@ -1389,6 +1558,7 @@ async function showBoatModal(part) {
   const photoHtml = photoSrc ? `<img src="${photoSrc}" alt="${escHtml(part.boat_name)}" class="boat-photo">` : '<div class="big-icon">&#x1F6A2;</div>';
   const portHtml = part.homeport ? `<p>Home Port: ${escHtml(part.homeport)}</p>` : '';
   const webHtml = part.website ? `<p><a href="${escHtml(part.website)}" target="_blank" rel="noopener">${escHtml(part.website)}</a></p>` : '';
+  const emailHtml = part.email ? `<p>Email: ${escHtml(part.email)}</p>` : '';
   let html = `<div class="detail-header">
     ${photoHtml}
     <div class="detail-info">
@@ -1396,6 +1566,7 @@ async function showBoatModal(part) {
       <p>Owner: ${escHtml(part.owner || 'N/A')} &bull; Captain: ${escHtml(part.captain || 'N/A')}</p>
       ${portHtml}
       ${webHtml}
+      ${emailHtml}
     </div>
   </div>`;
 
@@ -1604,6 +1775,26 @@ function showTournamentModal(tid) {
     html += '</tbody></table></div>';
   }
 
+  // Release summary for fish-count categories
+  const releaseSummaryCats = DATA.categories.filter(c => c.points_per_fish != null && c.points_per_fish > 0);
+  if (releaseSummaryCats.length > 0) {
+    const fishSummary = releaseSummaryCats.map(cat => {
+      const catPts = tournPts.filter(p => p.category_id === cat.id && p.fish_count != null);
+      const totalFish = catPts.reduce((s, p) => s + (p.fish_count || 0), 0);
+      const totalPtsVal = catPts.reduce((s, p) => s + (p.points || 0), 0);
+      return { name: cat.name, totalFish, totalPts: totalPtsVal };
+    }).filter(s => s.totalFish > 0);
+
+    if (fishSummary.length > 0) {
+      html += `<div class="section-label">Release Totals</div>`;
+      html += '<div style="overflow-x:auto;"><table><thead><tr><th>Category</th><th style="text-align:center;">Total Fish</th><th style="text-align:center;">Total Points</th></tr></thead><tbody>';
+      for (const fs of fishSummary) {
+        html += `<tr><td>${escHtml(fs.name)}</td><td style="text-align:center;font-weight:700;">${fs.totalFish}</td><td style="text-align:center;color:var(--gold);font-weight:700;">${fs.totalPts.toLocaleString()}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+  }
+
   if (boatRows.length === 0) {
     html += '<div class="empty-state"><div class="empty-icon">&#x1F4CB;</div><p>No results recorded yet.</p></div>';
   }
@@ -1627,6 +1818,7 @@ function initAdminTabs() {
       const name = tab.dataset.tab;
       document.getElementById('leaderboardPanel').style.display = name === 'leaderboard' ? 'block' : 'none';
       document.getElementById('filterBar').style.display = name === 'leaderboard' ? 'flex' : 'none';
+      document.getElementById('leaderboardPanelsContainer').style.display = name === 'leaderboard' ? '' : 'none';
       document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('visible'));
       const panel = document.getElementById('panel-' + name);
       if (panel) {
@@ -1634,7 +1826,7 @@ function initAdminTabs() {
         if (name === 'enter-results') renderResultsGrid();
         if (name === 'manage-boats') { renderBoatList(); populateAnglerBoatDropdown(); }
         if (name === 'manage-tournaments') renderTournamentList();
-        if (name === 'manage-categories') { renderScoringRuleList(); renderCategoryList(); }
+        if (name === 'manage-categories') { renderPanelAdminList(); renderScoringRuleList(); renderCategoryList(); }
         if (name === 'super-admin') renderSuperAdminPanel();
       }
     });
@@ -1660,9 +1852,11 @@ function initAdminHandlers() {
   document.getElementById('importExcelBtn').addEventListener('click', importExcel);
 
   document.getElementById('addBoatBtn').addEventListener('click', addBoat);
+  document.getElementById('addAnglerRowBtn').addEventListener('click', addAnglerRow);
   document.getElementById('addAnglerBtn').addEventListener('click', addAngler);
   document.getElementById('addTournBtn').addEventListener('click', addTournament);
   document.getElementById('addCatBtn').addEventListener('click', addCategory);
+  document.getElementById('addPanelBtn').addEventListener('click', addPanel);
   document.getElementById('addRuleBtn').addEventListener('click', addScoringRule);
   document.getElementById('exportBtn').addEventListener('click', exportJSON);
   document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
@@ -1671,6 +1865,8 @@ function initAdminHandlers() {
 }
 
 // ===== ADMIN: ENTER RESULTS =====
+let resultsSearchTerm = '';
+
 function renderResultsGrid() {
   const tid = parseInt(document.getElementById('resultsTournament').value);
   if (!tid) return;
@@ -1685,52 +1881,137 @@ function renderResultsGrid() {
     categories = DATA.categories.filter(c => !c.is_standalone).sort((a,b) => a.sort_order - b.sort_order);
   }
 
+  // Apply search filter
+  if (resultsSearchTerm) {
+    const q = resultsSearchTerm.toLowerCase();
+    participants = participants.filter(p => {
+      if ((p.boat_name || '').toLowerCase().includes(q)) return true;
+      if ((p.angler_name || '').toLowerCase().includes(q)) return true;
+      if ((p.captain || '').toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }
+
   if (participants.length === 0 || categories.length === 0) {
     document.getElementById('resultsGrid').innerHTML = '<div class="empty-state"><p>No participants or categories for this selection.</p></div>';
     return;
   }
 
-  let html = '<table><thead><tr><th>Name</th>';
+  // Search bar
+  let html = `<div class="results-search-wrap"><input type="text" id="resultsSearchInput" placeholder="Search boats/anglers..." value="${escHtml(resultsSearchTerm)}"></div>`;
+
+  html += '<table><thead><tr><th style="min-width:40px;text-align:center;" title="Participated">&#x2714;</th><th>Name</th>';
   for (const c of categories) {
-    const unitLabel = c.scoring_type === 'weight' ? ' (lbs)' : '';
-    html += `<th style="text-align:center;font-size:0.7rem;white-space:nowrap;" title="${escHtml(c.name)}">${escHtml(c.name.length > 14 ? c.name.substring(0,12)+'..' : c.name)}${unitLabel}</th>`;
+    const hasPPF = c.points_per_fish != null && c.points_per_fish > 0;
+    const unitLabel = c.scoring_type === 'weight' ? ' (lbs)' : (hasPPF ? ' (#)' : '');
+    html += `<th style="text-align:center;font-size:0.7rem;white-space:nowrap;" title="${escHtml(c.name)}${hasPPF ? ' (' + c.points_per_fish + ' pts each)' : ''}">${escHtml(c.name.length > 14 ? c.name.substring(0,12)+'..' : c.name)}${unitLabel}</th>`;
   }
+  html += '<th style="text-align:center;font-size:0.7rem;white-space:nowrap;" title="Last Release Time">Release Time</th>';
   html += '</tr></thead><tbody>';
+
+  const tpData = DATA.tournament_participation || [];
 
   for (const p of participants) {
     const label = p.boat_name || p.angler_name;
     const sublabel = p.participant_type === 'boat' ? (p.captain || '') : (p.boat_id ? (getBoatById(p.boat_id)||{}).boat_name || '' : '');
+    const tp = tpData.find(t => t.tournament_id === tid && t.participant_id === p.id);
+    const hasScores = DATA.points.some(pt => pt.tournament_id === tid && pt.participant_id === p.id && pt.points > 0);
+    const participated = tp ? tp.participated : hasScores;
+    const releaseTime = tp ? (tp.release_time || '') : '';
 
-    html += `<tr><td class="row-label">${escHtml(label)}${sublabel ? '<span class="row-sublabel">' + escHtml(sublabel) + '</span>' : ''}</td>`;
+    html += `<tr><td style="text-align:center;"><input type="checkbox" data-pid="${p.id}" class="tp-participated" ${participated ? 'checked' : ''}></td>`;
+    html += `<td class="row-label">${escHtml(label)}${sublabel ? '<span class="row-sublabel">' + escHtml(sublabel) + '</span>' : ''}</td>`;
     for (const c of categories) {
       const existing = DATA.points.find(pt => pt.tournament_id === tid && pt.participant_id === p.id && pt.category_id === c.id);
-      html += `<td><input type="number" min="0" step="any" data-pid="${p.id}" data-cid="${c.id}" value="${existing ? existing.points : ''}" placeholder="0"></td>`;
+      const hasPPF = c.points_per_fish != null && c.points_per_fish > 0;
+      if (hasPPF) {
+        const fishCount = existing && existing.fish_count != null ? existing.fish_count : '';
+        const calcPts = fishCount ? (fishCount * c.points_per_fish) : 0;
+        html += `<td style="text-align:center;"><input type="number" min="0" step="1" data-pid="${p.id}" data-cid="${c.id}" data-ppf="${c.points_per_fish}" class="fish-count-input" value="${fishCount}" placeholder="0" style="width:50px;"><span class="fish-count-display">${calcPts ? '= ' + calcPts + ' pts' : ''}</span></td>`;
+      } else {
+        html += `<td><input type="number" min="0" step="any" data-pid="${p.id}" data-cid="${c.id}" value="${existing ? existing.points : ''}" placeholder="0"></td>`;
+      }
     }
+    html += `<td><input type="time" data-pid="${p.id}" class="tp-release-time" value="${escHtml(releaseTime)}" style="width:100px;"></td>`;
     html += '</tr>';
   }
   html += '</tbody></table>';
   document.getElementById('resultsGrid').innerHTML = html;
 
-  document.getElementById('resultsGrid').querySelectorAll('input').forEach(inp => {
+  // Wire search
+  const searchInput = document.getElementById('resultsSearchInput');
+  if (searchInput) {
+    let debounce;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        resultsSearchTerm = searchInput.value.trim();
+        renderResultsGrid();
+      }, 300);
+    });
+    searchInput.focus();
+    searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+  }
+
+  // Wire fish count display update
+  document.getElementById('resultsGrid').querySelectorAll('.fish-count-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const fc = parseInt(inp.value) || 0;
+      const ppf = parseFloat(inp.dataset.ppf) || 0;
+      const calc = fc * ppf;
+      const span = inp.parentElement.querySelector('.fish-count-display');
+      if (span) span.textContent = calc ? '= ' + calc + ' pts' : '';
+      document.getElementById('unsavedIndicator').classList.add('show');
+    });
+  });
+
+  document.getElementById('resultsGrid').querySelectorAll('input:not(.fish-count-input):not(#resultsSearchInput)').forEach(inp => {
     inp.addEventListener('input', () => document.getElementById('unsavedIndicator').classList.add('show'));
+  });
+  document.getElementById('resultsGrid').querySelectorAll('input[type="checkbox"]').forEach(inp => {
+    inp.addEventListener('change', () => document.getElementById('unsavedIndicator').classList.add('show'));
   });
 }
 
 async function saveResults() {
   const tid = parseInt(document.getElementById('resultsTournament').value);
   if (!tid) return;
-  const inputs = document.getElementById('resultsGrid').querySelectorAll('input[type="number"]');
+  const grid = document.getElementById('resultsGrid');
 
+  // Collect point entries
   const pointEntries = [];
-  inputs.forEach(inp => {
+  grid.querySelectorAll('input[type="number"][data-cid]').forEach(inp => {
     const pid = parseInt(inp.dataset.pid);
     const cid = parseInt(inp.dataset.cid);
-    const val = parseFloat(inp.value) || 0;
-    pointEntries.push({ tournament_id: tid, participant_id: pid, category_id: cid, points: val });
+    const ppf = inp.dataset.ppf ? parseFloat(inp.dataset.ppf) : null;
+    if (ppf) {
+      // Fish count mode
+      const fishCount = parseInt(inp.value) || 0;
+      pointEntries.push({ tournament_id: tid, participant_id: pid, category_id: cid, points: fishCount * ppf, fish_count: fishCount });
+    } else {
+      const val = parseFloat(inp.value) || 0;
+      pointEntries.push({ tournament_id: tid, participant_id: pid, category_id: cid, points: val });
+    }
+  });
+
+  // Collect tournament participation entries
+  const tpEntries = [];
+  grid.querySelectorAll('.tp-participated').forEach(cb => {
+    const pid = parseInt(cb.dataset.pid);
+    const participated = cb.checked;
+    const releaseInput = grid.querySelector(`.tp-release-time[data-pid="${pid}"]`);
+    const releaseTime = releaseInput ? releaseInput.value : null;
+    tpEntries.push({ tournament_id: tid, participant_id: pid, participated, release_time: releaseTime || null });
   });
 
   try {
-    await api('points', { method: 'POST', body: JSON.stringify({ points: pointEntries }) });
+    const promises = [
+      api('points', { method: 'POST', body: JSON.stringify({ points: pointEntries }) }),
+    ];
+    if (tpEntries.length > 0) {
+      promises.push(api('tournament-participation/batch', { method: 'POST', body: JSON.stringify({ entries: tpEntries }) }));
+    }
+    await Promise.all(promises);
 
     const tourn = DATA.tournaments.find(t => t.id === tid);
     if (tourn && tourn.status === 'upcoming') {
@@ -1820,7 +2101,7 @@ function renderBoatList() {
     html += `<li>
       <div class="item-info">
         <div class="item-name">${escHtml(p.boat_name)} <span class="boat-type-badge ${p.boat_type}">${p.boat_type}</span> <span class="boat-type-badge ${sonarLabel}">${sonarLabel}</span></div>
-        <div class="item-meta">${p.owner ? 'Owner: ' + escHtml(p.owner) + ' &bull; ' : ''}Captain: ${escHtml(p.captain || 'N/A')}${p.homeport ? ' &bull; ' + escHtml(p.homeport) : ''}${crewInfo}</div>
+        <div class="item-meta">${p.owner ? 'Owner: ' + escHtml(p.owner) + ' &bull; ' : ''}Captain: ${escHtml(p.captain || 'N/A')}${p.homeport ? ' &bull; ' + escHtml(p.homeport) : ''}${p.email ? ' &bull; ' + escHtml(p.email) : ''}${crewInfo}</div>
       </div>
       <div style="display:flex;gap:0.4rem;">
         <button class="btn btn-secondary btn-sm" onclick="openEditBoat(${p.id})">Edit</button>
@@ -1858,6 +2139,7 @@ async function addBoat() {
   const sonar = document.getElementById('newBoatSonar').value === 'true';
   const homeport = document.getElementById('newBoatHomeport').value.trim() || null;
   const website = document.getElementById('newBoatWebsite').value.trim() || null;
+  const email = document.getElementById('newBoatEmail').value.trim() || null;
   if (!name) { showToast('Enter a boat name.', true); return; }
 
   try {
@@ -1870,21 +2152,38 @@ async function addBoat() {
       photoFilename = uploadResult.filename;
     }
 
-    await api('participants', {
+    const newBoat = await api('participants', {
       method: 'POST',
       body: JSON.stringify({
         boat_name: name, captain: captain || null, owner: boatOwner,
         participant_type: 'boat', boat_type: btype, sonar: sonar,
-        homeport: homeport, website: website, photo: photoFilename,
+        homeport: homeport, website: website, photo: photoFilename, email: email,
       }),
     });
+
+    // Add inline anglers
+    const anglerRows = document.querySelectorAll('#newBoatAnglerRows .angler-row');
+    for (const row of anglerRows) {
+      const anglerName = row.querySelector('.angler-name-input').value.trim();
+      const anglerType = row.querySelector('.angler-type-select').value;
+      if (anglerName) {
+        await api('participants', {
+          method: 'POST',
+          body: JSON.stringify({
+            angler_name: anglerName, participant_type: anglerType, boat_id: newBoat.id,
+          }),
+        });
+      }
+    }
 
     document.getElementById('newBoatName').value = '';
     document.getElementById('newBoatOwner').value = '';
     document.getElementById('newBoatCaptain').value = '';
     document.getElementById('newBoatHomeport').value = '';
     document.getElementById('newBoatWebsite').value = '';
+    document.getElementById('newBoatEmail').value = '';
     document.getElementById('newBoatPhoto').value = '';
+    document.getElementById('newBoatAnglerRows').innerHTML = '';
     await refreshData();
     renderBoatList();
     populateAnglerBoatDropdown();
@@ -1917,6 +2216,23 @@ async function addAngler() {
   }
 }
 
+function addAnglerRow() {
+  const container = document.getElementById('newBoatAnglerRows');
+  const row = document.createElement('div');
+  row.className = 'angler-row';
+  row.innerHTML = `
+    <input type="text" class="angler-name-input" placeholder="Angler name">
+    <select class="angler-type-select">
+      <option value="angler">Angler</option>
+      <option value="lady_angler">Lady Angler</option>
+      <option value="junior_angler_boy">Jr. Boy</option>
+      <option value="junior_angler_girl">Jr. Girl</option>
+    </select>
+    <button type="button" class="remove-angler" onclick="this.parentElement.remove()">&times;</button>
+  `;
+  container.appendChild(row);
+}
+
 window.deleteParticipant = async function(id) {
   const p = DATA.participants.find(x => x.id === id);
   const name = p ? getParticipantName(p) : 'this participant';
@@ -1945,6 +2261,7 @@ window.openEditBoat = function(id) {
   document.getElementById('editBoatType').value = p.boat_type || 'private';
   document.getElementById('editBoatSonar').value = p.sonar ? 'true' : 'false';
   document.getElementById('editBoatWebsite').value = p.website || '';
+  document.getElementById('editBoatEmail').value = p.email || '';
   const preview = document.getElementById('editBoatPhotoPreview');
   const removeBtn = document.getElementById('editBoatPhotoRemove');
   if (p.photo) {
@@ -1990,6 +2307,7 @@ function initEditBoatHandlers() {
         boat_type: document.getElementById('editBoatType').value,
         sonar: document.getElementById('editBoatSonar').value === 'true',
         website: document.getElementById('editBoatWebsite').value.trim() || null,
+        email: document.getElementById('editBoatEmail').value.trim() || null,
       };
       if (photoFilename !== undefined) body.photo = photoFilename;
 
@@ -2056,6 +2374,7 @@ function renderTournamentList() {
       <div style="display:flex;gap:0.4rem;">
         <button class="btn btn-secondary btn-sm" onclick="openEditTournament(${t.id})">Edit</button>
         <button class="btn btn-secondary btn-sm" onclick="toggleTournamentStatus(${t.id})">${t.status==='completed'?'Set Upcoming':'Set Completed'}</button>
+        <button class="btn btn-gold btn-sm" onclick="markVerified(${t.id})">Mark Verified</button>
         <button class="btn btn-danger btn-sm" onclick="deleteTournament(${t.id})">Delete</button>
       </div>
     </li>`).join('');
@@ -2110,6 +2429,17 @@ window.deleteTournament = async function(id) {
   }
 };
 
+window.markVerified = async function(id) {
+  if (!confirm('Mark all scores in this tournament as verified?')) return;
+  try {
+    await api('tournament-participation/verify/' + id, { method: 'POST' });
+    await refreshData();
+    showToast('Tournament scores verified!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
 // ===== ADMIN: EDIT TOURNAMENT =====
 window.openEditTournament = function(id) {
   const t = DATA.tournaments.find(x => x.id === id);
@@ -2148,10 +2478,285 @@ function initEditTournamentHandlers() {
   });
 }
 
+// ===== ADMIN: MANAGE LEADERBOARD PANELS =====
+let _panelAdminCache = [];
+let _inlineEditPanelId = null;
+let _inlineEditItemPanelId = null;
+let _inlineEditItemIdx = null;
+
+function _getPanelItems(panel) {
+  try { return JSON.parse(panel.content_json) || []; } catch(e) { return []; }
+}
+
+async function renderPanelAdminList() {
+  try {
+    _panelAdminCache = await api('leaderboard-panels/admin');
+    const list = document.getElementById('panelAdminList');
+    list.innerHTML = _panelAdminCache.map(p => {
+      const typeBadge = p.panel_type === 'custom' ? '<span style="color:var(--seafoam);font-size:0.75rem;">custom</span>'
+        : `<span style="color:var(--gold);font-size:0.75rem;">${escHtml(p.panel_type.replace('_', ' '))}</span>`;
+      const visBadge = p.visible ? '<span style="color:var(--seafoam);font-size:0.75rem;">visible</span>' : '<span style="color:var(--coral);font-size:0.75rem;">hidden</span>';
+      const itemCount = p.panel_type === 'custom' ? _getPanelItems(p).length : null;
+      const itemsBadge = itemCount !== null ? ` &bull; ${itemCount} item${itemCount !== 1 ? 's' : ''}` : '';
+      if (_inlineEditPanelId === p.id) {
+        return `<li style="flex-wrap:wrap;">
+          <div class="form-row" style="width:100%;margin-bottom:0.5rem;">
+            <div class="form-group" style="flex:1;"><label>Title</label><input type="text" id="editPanelTitle_${p.id}" value="${escHtml(p.title)}"></div>
+            <div class="form-group" style="max-width:80px;"><label>Order</label><input type="number" id="editPanelSort_${p.id}" value="${p.sort_order}" min="0"></div>
+          </div>
+          <div style="display:flex;gap:0.3rem;width:100%;justify-content:flex-end;">
+            <button class="btn btn-primary btn-sm" onclick="savePanelEdit(${p.id})">Save</button>
+            <button class="btn btn-sm" onclick="cancelPanelEdit()">Cancel</button>
+          </div>
+        </li>`;
+      }
+      return `<li>
+        <div class="item-info">
+          <div class="item-name">${escHtml(p.title)}</div>
+          <div class="item-meta">${typeBadge} &bull; ${visBadge} &bull; Order: ${p.sort_order}${itemsBadge}</div>
+        </div>
+        <button class="btn btn-sm" onclick="togglePanelVisibility(${p.id}, ${p.visible ? 0 : 1})" style="margin-right:0.3rem;">${p.visible ? 'Hide' : 'Show'}</button>
+        <button class="btn btn-gold btn-sm" onclick="editPanel(${p.id})" style="margin-right:0.3rem;">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePanel(${p.id})">Delete</button>
+      </li>`;
+    }).join('') || '<li style="color:var(--gray);padding:0.5rem;">No panels configured.</li>';
+    // Render per-panel item sections for all custom panels
+    renderPanelItemSections();
+  } catch(e) {
+    console.error('Failed to load panels:', e);
+  }
+}
+
+function renderPanelItemSections() {
+  const container = document.getElementById('panelItemSections');
+  const customPanels = _panelAdminCache.filter(p => p.panel_type === 'custom');
+  if (customPanels.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = customPanels.map(p => {
+    const items = _getPanelItems(p);
+    const itemListHtml = items.map((item, i) => {
+      if (_inlineEditItemPanelId === p.id && _inlineEditItemIdx === i) {
+        const selNormal = (item.style || 'normal') === 'normal' ? ' selected' : '';
+        const selHigh = item.style === 'highlight' ? ' selected' : '';
+        const selPen = item.style === 'penalty' ? ' selected' : '';
+        return `<li style="flex-wrap:wrap;">
+          <div class="form-row" style="width:100%;margin-bottom:0.5rem;">
+            <div class="form-group" style="flex:1;"><label>Label</label><input type="text" id="editItemLabel_${p.id}_${i}" value="${escHtml(item.label || '')}"></div>
+            <div class="form-group" style="max-width:140px;"><label>Value</label><input type="text" id="editItemValue_${p.id}_${i}" value="${escHtml(item.value || '')}"></div>
+            <div class="form-group" style="max-width:120px;"><label>Style</label>
+              <select id="editItemStyle_${p.id}_${i}">
+                <option value="normal"${selNormal}>Normal</option>
+                <option value="highlight"${selHigh}>Highlight</option>
+                <option value="penalty"${selPen}>Penalty</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:0.3rem;width:100%;justify-content:flex-end;">
+            <button class="btn btn-primary btn-sm" onclick="savePanelItemEdit(${p.id}, ${i})">Save</button>
+            <button class="btn btn-sm" onclick="cancelPanelItemEdit()">Cancel</button>
+          </div>
+        </li>`;
+      }
+      const styleTag = item.style === 'highlight' ? '<span style="color:var(--gold);font-size:0.75rem;">highlight</span>'
+        : item.style === 'penalty' ? '<span style="color:var(--coral);font-size:0.75rem;">penalty</span>'
+        : '<span style="color:var(--gray-light);font-size:0.75rem;">normal</span>';
+      return `<li>
+        <div class="item-info">
+          <div class="item-name">${escHtml(item.value || '')} &mdash; ${escHtml(item.label || '')}</div>
+          <div class="item-meta">${styleTag}</div>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="editPanelItem(${p.id}, ${i})" style="margin-right:0.3rem;">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePanelItem(${p.id}, ${i})">Delete</button>
+      </li>`;
+    }).join('') || '<li style="color:var(--gray);padding:0.5rem;">No items yet. Use the form above to add one.</li>';
+
+    return `<div class="admin-card">
+      <h3>${escHtml(p.title)} &mdash; Items</h3>
+      <p style="color:var(--gray-light);font-size:0.85rem;margin-bottom:0.75rem;">These items display in the "${escHtml(p.title)}" panel on the leaderboard.</p>
+      <div class="form-row">
+        <div class="form-group"><label>Label</label><input type="text" id="newItemLabel_${p.id}" placeholder="e.g. Per blue marlin released"></div>
+        <div class="form-group" style="max-width:140px;"><label>Value</label><input type="text" id="newItemValue_${p.id}" placeholder="e.g. 400 pts"></div>
+        <div class="form-group" style="max-width:120px;"><label>Style</label>
+          <select id="newItemStyle_${p.id}">
+            <option value="normal">Normal</option>
+            <option value="highlight">Highlight</option>
+            <option value="penalty">Penalty</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn btn-primary" onclick="addPanelItem(${p.id})">Add Item</button></div>
+    </div>
+    <div class="admin-card">
+      <h3>Current ${escHtml(p.title)} Items</h3>
+      <ul class="item-list">${itemListHtml}</ul>
+    </div>`;
+  }).join('');
+}
+
+async function addPanel() {
+  const title = document.getElementById('newPanelTitle').value.trim();
+  const panel_type = document.getElementById('newPanelType').value;
+  const sort_order = parseInt(document.getElementById('newPanelSort').value) || 0;
+  if (!title) { showToast('Enter a panel title.', true); return; }
+  try {
+    await api('leaderboard-panels', { method: 'POST', body: JSON.stringify({ title, panel_type, sort_order }) });
+    document.getElementById('newPanelTitle').value = '';
+    document.getElementById('newPanelSort').value = '0';
+    await refreshData();
+    renderPanelAdminList();
+    showToast('Panel added!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+window.togglePanelVisibility = async function(id, newVisible) {
+  try {
+    await api('leaderboard-panels/' + id, { method: 'PUT', body: JSON.stringify({ visible: !!newVisible }) });
+    await refreshData();
+    renderPanelAdminList();
+    showToast(newVisible ? 'Panel visible.' : 'Panel hidden.');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
+window.editPanel = function(id) {
+  _inlineEditPanelId = id;
+  renderPanelAdminList();
+};
+
+window.cancelPanelEdit = function() {
+  _inlineEditPanelId = null;
+  renderPanelAdminList();
+};
+
+window.savePanelEdit = function(id) {
+  const newTitle = document.getElementById('editPanelTitle_' + id).value.trim();
+  const newSort = parseInt(document.getElementById('editPanelSort_' + id).value) || 0;
+  if (!newTitle) { showToast('Title is required.', true); return; }
+  (async () => {
+    try {
+      await api('leaderboard-panels/' + id, { method: 'PUT', body: JSON.stringify({
+        title: newTitle, sort_order: newSort
+      }) });
+      _inlineEditPanelId = null;
+      await refreshData();
+      renderPanelAdminList();
+      showToast('Panel updated!');
+    } catch(e) {
+      showToast('Error: ' + e.message, true);
+    }
+  })();
+};
+
+// --- Panel Items ---
+
+window.addPanelItem = async function(panelId) {
+  const label = document.getElementById('newItemLabel_' + panelId).value.trim();
+  const value = document.getElementById('newItemValue_' + panelId).value.trim();
+  const style = document.getElementById('newItemStyle_' + panelId).value;
+  if (!label && !value) { showToast('Enter a label or value for the item.', true); return; }
+  const panel = _panelAdminCache.find(p => p.id === panelId);
+  if (!panel) return;
+  const items = _getPanelItems(panel);
+  items.push({ label, value, style: style || 'normal' });
+  try {
+    await api('leaderboard-panels/' + panelId, { method: 'PUT', body: JSON.stringify({ content_json: JSON.stringify(items) }) });
+    document.getElementById('newItemLabel_' + panelId).value = '';
+    document.getElementById('newItemValue_' + panelId).value = '';
+    document.getElementById('newItemStyle_' + panelId).value = 'normal';
+    await refreshData();
+    renderPanelAdminList();
+    showToast('Item added!');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
+window.editPanelItem = function(panelId, idx) {
+  _inlineEditItemPanelId = panelId;
+  _inlineEditItemIdx = idx;
+  renderPanelItemSections();
+};
+
+window.cancelPanelItemEdit = function() {
+  _inlineEditItemPanelId = null;
+  _inlineEditItemIdx = null;
+  renderPanelItemSections();
+};
+
+window.savePanelItemEdit = function(panelId, idx) {
+  const panel = _panelAdminCache.find(p => p.id === panelId);
+  if (!panel) return;
+  const items = _getPanelItems(panel);
+  const newLabel = document.getElementById('editItemLabel_' + panelId + '_' + idx).value.trim();
+  const newValue = document.getElementById('editItemValue_' + panelId + '_' + idx).value.trim();
+  const newStyle = document.getElementById('editItemStyle_' + panelId + '_' + idx).value;
+  items[idx] = { label: newLabel, value: newValue, style: newStyle || 'normal' };
+  (async () => {
+    try {
+      await api('leaderboard-panels/' + panelId, { method: 'PUT', body: JSON.stringify({ content_json: JSON.stringify(items) }) });
+      _inlineEditItemPanelId = null;
+      _inlineEditItemIdx = null;
+      await refreshData();
+      renderPanelAdminList();
+      showToast('Item updated!');
+    } catch(e) {
+      showToast('Error: ' + e.message, true);
+    }
+  })();
+};
+
+window.deletePanelItem = function(panelId, idx) {
+  if (!confirm('Delete this item?')) return;
+  const panel = _panelAdminCache.find(p => p.id === panelId);
+  if (!panel) return;
+  const items = _getPanelItems(panel);
+  items.splice(idx, 1);
+  (async () => {
+    try {
+      await api('leaderboard-panels/' + panelId, { method: 'PUT', body: JSON.stringify({ content_json: JSON.stringify(items) }) });
+      await refreshData();
+      renderPanelAdminList();
+      showToast('Item deleted.');
+    } catch(e) {
+      showToast('Error: ' + e.message, true);
+    }
+  })();
+};
+
+window.deletePanel = async function(id) {
+  if (!confirm('Delete this leaderboard panel?')) return;
+  try {
+    await api('leaderboard-panels/' + id, { method: 'DELETE' });
+    await refreshData();
+    renderPanelAdminList();
+    showToast('Panel deleted.');
+  } catch(e) {
+    showToast('Error: ' + e.message, true);
+  }
+};
+
 // ===== ADMIN: MANAGE SCORING RULES =====
+let _inlineEditRuleId = null;
+
 function renderScoringRuleList() {
   const sorted = [...(DATA.scoring_rules || [])].sort((a, b) => a.sort_order - b.sort_order);
   document.getElementById('scoringRuleList').innerHTML = sorted.map(r => {
+    if (_inlineEditRuleId === r.id) {
+      return `<li style="flex-wrap:wrap;">
+        <div class="form-row" style="width:100%;margin-bottom:0.5rem;">
+          <div class="form-group" style="flex:1;"><label>Label</label><input type="text" id="editRuleLabel_${r.id}" value="${escHtml(r.label)}"></div>
+          <div class="form-group" style="max-width:140px;"><label>Value</label><input type="text" id="editRuleValue_${r.id}" value="${escHtml(r.value)}"></div>
+          <div class="form-group" style="max-width:80px;"><label>Order</label><input type="number" id="editRuleSort_${r.id}" value="${r.sort_order}" min="0"></div>
+          <div class="form-group" style="max-width:80px;display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" id="editRulePenalty_${r.id}" ${r.is_penalty ? 'checked' : ''}> Penalty</label></div>
+        </div>
+        <div style="display:flex;gap:0.3rem;width:100%;justify-content:flex-end;">
+          <button class="btn btn-primary btn-sm" onclick="saveScoringRuleEdit(${r.id})">Save</button>
+          <button class="btn btn-sm" onclick="cancelScoringRuleEdit()">Cancel</button>
+        </div>
+      </li>`;
+    }
     return `<li>
       <div class="item-info">
         <div class="item-name">${r.is_penalty ? '<span style="color:var(--coral);">' : ''}${escHtml(r.value)}${r.is_penalty ? '</span>' : ''} &mdash; ${escHtml(r.label)}</div>
@@ -2184,20 +2789,27 @@ async function addScoringRule() {
 }
 
 window.editScoringRule = function(id) {
-  const rule = (DATA.scoring_rules || []).find(r => r.id === id);
-  if (!rule) return;
-  const newLabel = prompt('Label:', rule.label);
-  if (newLabel === null) return;
-  const newValue = prompt('Value:', rule.value);
-  if (newValue === null) return;
-  const newSort = prompt('Sort order:', rule.sort_order);
-  if (newSort === null) return;
-  const newPenalty = confirm('Is this a penalty rule?');
+  _inlineEditRuleId = id;
+  renderScoringRuleList();
+};
+
+window.cancelScoringRuleEdit = function() {
+  _inlineEditRuleId = null;
+  renderScoringRuleList();
+};
+
+window.saveScoringRuleEdit = function(id) {
+  const newLabel = document.getElementById('editRuleLabel_' + id).value.trim();
+  const newValue = document.getElementById('editRuleValue_' + id).value.trim();
+  const newSort = parseInt(document.getElementById('editRuleSort_' + id).value) || 0;
+  const newPenalty = document.getElementById('editRulePenalty_' + id).checked;
+  if (!newLabel || !newValue) { showToast('Label and value are required.', true); return; }
   (async () => {
     try {
       await api('scoring-rules/' + id, { method: 'PUT', body: JSON.stringify({
-        label: newLabel, value: newValue, sort_order: parseInt(newSort) || 0, is_penalty: newPenalty
+        label: newLabel, value: newValue, sort_order: newSort, is_penalty: newPenalty
       }) });
+      _inlineEditRuleId = null;
       await refreshData();
       renderScoringRuleList();
       showToast('Scoring rule updated!');
@@ -2227,6 +2839,8 @@ function renderCategoryList() {
     if (c.is_standalone) tags.push('standalone');
     if (c.scoring_type === 'weight') tags.push('lbs');
     if (c.applies_to) tags.push(c.applies_to.replace('_',' '));
+    if (c.include_in_overall === 1) tags.push('incl. overall');
+    if (c.points_per_fish) tags.push(c.points_per_fish + ' pts/fish');
     return `<li>
       <div class="item-info">
         <div class="item-name">${escHtml(c.name)}</div>
@@ -2241,16 +2855,22 @@ async function addCategory() {
   const name = document.getElementById('newCatName').value.trim();
   const group = document.getElementById('newCatGroup').value;
   const sort = parseInt(document.getElementById('newCatSort').value) || (DATA.categories.length + 1);
+  const ppf = parseFloat(document.getElementById('newCatPointsPerFish').value) || null;
+  const includeOverall = document.getElementById('newCatIncludeOverall').checked;
   if (!name) { showToast('Enter a category name.', true); return; }
 
   const body = { name, category_group: group, scoring_type: 'points', is_standalone: false, unit: 'pts', sort_order: sort };
   if (group === 'Gamefish') { body.is_standalone = true; body.scoring_type = 'weight'; body.unit = 'lbs'; }
   else if (group === 'Special') { body.is_standalone = true; body.applies_to = name.toLowerCase().replace(/\s+/g, '_'); }
+  if (ppf) body.points_per_fish = ppf;
+  if (includeOverall) body.include_in_overall = true;
 
   try {
     await api('categories', { method: 'POST', body: JSON.stringify(body) });
     document.getElementById('newCatName').value = '';
     document.getElementById('newCatSort').value = '';
+    document.getElementById('newCatPointsPerFish').value = '';
+    document.getElementById('newCatIncludeOverall').checked = false;
     await refreshData();
     renderCategoryList();
     showToast('Category added!');
