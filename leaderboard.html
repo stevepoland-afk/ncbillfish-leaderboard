@@ -396,6 +396,29 @@ body.kiosk-mode .header-right { display: none !important; }
   .boat-type-badge { border: 1px solid #aaa; color: #555; background: #f0f0f0; }
   .modal-overlay, .toast { display: none !important; }
 }
+/* Quick Results autocomplete dropdown */
+.qr-suggestions {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  max-height: 200px; overflow-y: auto; list-style: none; padding: 0; margin: 0;
+  display: none; box-shadow: var(--shadow);
+}
+.qr-suggestions.open { display: block; }
+.qr-suggestions li {
+  padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.qr-suggestions li:last-child { border-bottom: none; }
+.qr-suggestions li:hover, .qr-suggestions li.active {
+  background: var(--navy-mid); color: var(--gold);
+}
+.qr-suggestions li .qr-sub { font-size: 0.75rem; color: var(--gray-light); display: block; }
+#qrFeedback {
+  margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: var(--radius);
+  font-size: 0.85rem; font-weight: 500;
+}
+#qrFeedback.success { background: rgba(26,154,82,0.12); color: var(--success); display: block; }
+#qrFeedback.error { background: rgba(224,69,69,0.12); color: var(--coral); display: block; }
 </style>
 </head>
 <body>
@@ -509,6 +532,28 @@ body.kiosk-mode .header-right { display: none !important; }
         <div class="results-type-tab" data-rtype="junior_angler_boy">Jr. Boy</div>
         <div class="results-type-tab" data-rtype="junior_angler_girl">Jr. Girl</div>
       </div>
+    </div>
+    <div class="admin-card" id="quickResultsCard">
+      <h3>Quick Add Result</h3>
+      <div class="form-row" style="align-items:flex-end;flex-wrap:wrap;">
+        <div class="form-group" style="flex:2;min-width:200px;position:relative;">
+          <label>Boat / Angler</label>
+          <input type="text" id="qrSearch" placeholder="Start typing a name..." autocomplete="off">
+          <ul id="qrSuggestions" class="qr-suggestions"></ul>
+        </div>
+        <div class="form-group" style="flex:1;min-width:150px;">
+          <label>Category</label>
+          <select id="qrCategory"></select>
+        </div>
+        <div class="form-group" style="max-width:120px;">
+          <label id="qrScoreLabel">Score</label>
+          <input type="number" id="qrScore" min="0" step="any" placeholder="0">
+        </div>
+        <div class="form-group" style="max-width:100px;display:flex;align-items:flex-end;">
+          <button class="btn btn-primary" id="qrSubmitBtn">Add</button>
+        </div>
+      </div>
+      <div id="qrFeedback" style="display:none;"></div>
     </div>
     <div class="admin-card">
       <div class="results-grid" id="resultsGrid"></div>
@@ -641,6 +686,7 @@ body.kiosk-mode .header-right { display: none !important; }
       <div class="form-row">
         <div class="form-group" style="max-width:140px;"><label>Points per Fish</label><input type="number" id="newCatPointsPerFish" min="0" step="any" placeholder="e.g. 400"></div>
         <div class="form-group" style="max-width:180px;display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" id="newCatIncludeOverall"> Include in Overall</label></div>
+        <div class="form-group" style="max-width:180px;display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" id="newCatAggregate"> Aggregate Scoring</label></div>
       </div>
       <div class="btn-row"><button class="btn btn-primary" id="addCatBtn">Add Category</button></div>
     </div>
@@ -1836,7 +1882,10 @@ function initAdminTabs() {
 // ===== ADMIN: EVENT HANDLERS =====
 function initAdminHandlers() {
   document.getElementById('resultsTournament').innerHTML = DATA.tournaments.map(t => `<option value="${t.id}">T${t.event_number}: ${escHtml(t.event_name)}</option>`).join('');
-  document.getElementById('resultsTournament').addEventListener('change', renderResultsGrid);
+  document.getElementById('resultsTournament').addEventListener('change', () => {
+    renderResultsGrid();
+    renderQuickResultsCategories();
+  });
   document.getElementById('saveResultsBtn').addEventListener('click', saveResults);
 
   document.querySelectorAll('.results-type-tab').forEach(tab => {
@@ -1845,8 +1894,27 @@ function initAdminHandlers() {
       tab.classList.add('active');
       currentResultsType = tab.dataset.rtype;
       renderResultsGrid();
+      renderQuickResultsCategories();
+      // Clear quick-result search when switching tabs
+      document.getElementById('qrSearch').value = '';
+      _qrSelectedPid = null;
+      document.getElementById('qrSuggestions').classList.remove('open');
     });
   });
+
+  // Quick Results wiring
+  document.getElementById('qrSubmitBtn').addEventListener('click', submitQuickResult);
+  document.getElementById('qrSearch').addEventListener('input', handleQrSearchInput);
+  document.getElementById('qrSearch').addEventListener('keydown', handleQrKeyboard);
+  document.getElementById('qrCategory').addEventListener('change', updateQrScoreLabel);
+  document.getElementById('qrSuggestions').addEventListener('click', handleQrSuggestionClick);
+  // Close suggestions on outside click
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#qrSearch') && !e.target.closest('#qrSuggestions')) {
+      document.getElementById('qrSuggestions').classList.remove('open');
+    }
+  });
+  renderQuickResultsCategories();
 
   document.getElementById('downloadTemplateBtn').addEventListener('click', downloadTemplate);
   document.getElementById('importExcelBtn').addEventListener('click', importExcel);
@@ -1971,6 +2039,204 @@ function renderResultsGrid() {
   document.getElementById('resultsGrid').querySelectorAll('input[type="checkbox"]').forEach(inp => {
     inp.addEventListener('change', () => document.getElementById('unsavedIndicator').classList.add('show'));
   });
+}
+
+// ===== QUICK ADD RESULT =====
+let _qrSelectedPid = null;
+let _qrDebounce = null;
+
+function renderQuickResultsCategories() {
+  const sel = document.getElementById('qrCategory');
+  if (!sel) return;
+  let categories;
+  if (currentResultsType === 'boats') {
+    categories = DATA.categories.filter(c => !c.applies_to).sort((a,b) => a.sort_order - b.sort_order);
+  } else {
+    categories = DATA.categories.filter(c => !c.is_standalone).sort((a,b) => a.sort_order - b.sort_order);
+  }
+  sel.innerHTML = categories.map(c => {
+    const ppf = (c.points_per_fish != null && c.points_per_fish > 0) ? c.points_per_fish : 0;
+    return `<option value="${c.id}" data-ppf="${ppf}" data-scoring="${c.scoring_type || ''}">${escHtml(c.name)}</option>`;
+  }).join('');
+  updateQrScoreLabel();
+}
+
+function updateQrScoreLabel() {
+  const sel = document.getElementById('qrCategory');
+  const label = document.getElementById('qrScoreLabel');
+  if (!sel || !label) return;
+  const opt = sel.selectedOptions[0];
+  if (!opt) { label.textContent = 'Score'; return; }
+  const ppf = parseFloat(opt.dataset.ppf) || 0;
+  const scoring = opt.dataset.scoring || '';
+  if (ppf > 0) {
+    label.textContent = 'Fish Count (#)';
+  } else if (scoring === 'weight') {
+    label.textContent = 'Weight (lbs)';
+  } else {
+    label.textContent = 'Points';
+  }
+}
+
+function handleQrSearchInput() {
+  clearTimeout(_qrDebounce);
+  _qrDebounce = setTimeout(() => {
+    const term = document.getElementById('qrSearch').value.trim().toLowerCase();
+    const list = document.getElementById('qrSuggestions');
+    if (!term || term.length < 1) {
+      list.classList.remove('open');
+      list.innerHTML = '';
+      return;
+    }
+    let participants;
+    if (currentResultsType === 'boats') {
+      participants = getBoats();
+    } else {
+      participants = getIndividuals(currentResultsType);
+    }
+    const matches = participants.filter(p => {
+      if ((p.boat_name || '').toLowerCase().includes(term)) return true;
+      if ((p.angler_name || '').toLowerCase().includes(term)) return true;
+      if ((p.captain || '').toLowerCase().includes(term)) return true;
+      return false;
+    }).slice(0, 8);
+
+    if (matches.length === 0) {
+      list.innerHTML = '<li style="color:var(--gray);cursor:default;">No matches</li>';
+      list.classList.add('open');
+      return;
+    }
+    list.innerHTML = matches.map(p => {
+      const name = p.boat_name || p.angler_name;
+      let sub = '';
+      if (p.participant_type === 'boat') {
+        sub = p.captain || '';
+      } else if (p.boat_id) {
+        const boat = getBoatById(p.boat_id);
+        sub = boat ? boat.boat_name : '';
+      }
+      return `<li data-pid="${p.id}">${escHtml(name)}${sub ? '<span class="qr-sub">' + escHtml(sub) + '</span>' : ''}</li>`;
+    }).join('');
+    list.classList.add('open');
+  }, 150);
+}
+
+function handleQrSuggestionClick(e) {
+  const li = e.target.closest('li');
+  if (!li || !li.dataset.pid) return;
+  _qrSelectedPid = parseInt(li.dataset.pid);
+  const name = li.textContent.trim().split('\n')[0];
+  const p = DATA.participants.find(x => x.id === _qrSelectedPid);
+  document.getElementById('qrSearch').value = p ? (p.boat_name || p.angler_name) : name;
+  document.getElementById('qrSuggestions').classList.remove('open');
+  document.getElementById('qrScore').focus();
+}
+
+function handleQrKeyboard(e) {
+  const list = document.getElementById('qrSuggestions');
+  if (!list.classList.contains('open')) return;
+  const items = list.querySelectorAll('li[data-pid]');
+  if (items.length === 0) return;
+  let idx = Array.from(items).findIndex(li => li.classList.contains('active'));
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    items.forEach(li => li.classList.remove('active'));
+    idx = (idx + 1) % items.length;
+    items[idx].classList.add('active');
+    items[idx].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    items.forEach(li => li.classList.remove('active'));
+    idx = idx <= 0 ? items.length - 1 : idx - 1;
+    items[idx].classList.add('active');
+    items[idx].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const active = list.querySelector('li.active') || items[0];
+    if (active && active.dataset.pid) active.click();
+  } else if (e.key === 'Escape') {
+    list.classList.remove('open');
+  }
+}
+
+async function submitQuickResult() {
+  const tid = parseInt(document.getElementById('resultsTournament').value);
+  const feedback = document.getElementById('qrFeedback');
+  if (!tid) { showToast('Select a tournament first', true); return; }
+  if (!_qrSelectedPid) { showToast('Select a participant from the dropdown', true); return; }
+  const catSel = document.getElementById('qrCategory');
+  const cid = parseInt(catSel.value);
+  if (!cid) { showToast('Select a category', true); return; }
+  const scoreInput = document.getElementById('qrScore');
+  const rawVal = parseFloat(scoreInput.value);
+  if (!rawVal || rawVal <= 0) { showToast('Enter a score greater than 0', true); return; }
+
+  const opt = catSel.selectedOptions[0];
+  const ppf = parseFloat(opt.dataset.ppf) || 0;
+
+  // Look up existing value — accumulate for fish-count (ppf) and aggregate categories; replace otherwise
+  const existing = DATA.points.find(pt => pt.tournament_id === tid && pt.participant_id === _qrSelectedPid && pt.category_id === cid);
+  const cat = DATA.categories.find(c => c.id === cid);
+  const isAggregate = cat && cat.is_aggregate;
+
+  let points, fish_count;
+  if (ppf > 0) {
+    // Fish count categories always accumulate
+    const existingFishCount = existing ? (existing.fish_count || 0) : 0;
+    fish_count = existingFishCount + Math.round(rawVal);
+    points = fish_count * ppf;
+  } else if (isAggregate) {
+    // Aggregate categories add to existing
+    const existingPoints = existing ? (existing.points || 0) : 0;
+    points = existingPoints + rawVal;
+    fish_count = null;
+  } else {
+    // Non-aggregate (e.g. individual fish weights) — replace
+    points = rawVal;
+    fish_count = null;
+  }
+
+  const entry = { tournament_id: tid, participant_id: _qrSelectedPid, category_id: cid, points };
+  if (fish_count !== null) entry.fish_count = fish_count;
+
+  const participant = DATA.participants.find(p => p.id === _qrSelectedPid);
+  const pName = participant ? (participant.boat_name || participant.angler_name) : 'Unknown';
+  const catName = opt.textContent;
+
+  try {
+    document.getElementById('qrSubmitBtn').disabled = true;
+    await api('points', { method: 'POST', body: JSON.stringify({ points: [entry] }) });
+    await api('tournament-participation/batch', {
+      method: 'POST',
+      body: JSON.stringify({ entries: [{ tournament_id: tid, participant_id: _qrSelectedPid, participated: true }] })
+    });
+
+    let displayVal;
+    if (ppf > 0) {
+      const addedFish = Math.round(rawVal);
+      displayVal = `${addedFish} fish (${addedFish * ppf} pts) to ${pName} — ${catName}` + (fish_count > addedFish ? ` (total: ${fish_count} fish, ${points} pts)` : '');
+    } else if (isAggregate && existing) {
+      displayVal = `${rawVal} to ${pName} — ${catName} (total: ${points})`;
+    } else {
+      displayVal = `${rawVal} to ${pName} — ${catName}`;
+    }
+    feedback.textContent = `Added ${displayVal}`;
+    feedback.className = 'success';
+    feedback.style.display = 'block';
+    setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+
+    scoreInput.value = '';
+    await refreshData();
+    renderResultsGrid();
+  } catch(e) {
+    feedback.textContent = 'Error: ' + e.message;
+    feedback.className = 'error';
+    feedback.style.display = 'block';
+    setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+    showToast('Error adding result: ' + e.message, true);
+  } finally {
+    document.getElementById('qrSubmitBtn').disabled = false;
+  }
 }
 
 async function saveResults() {
@@ -2841,6 +3107,7 @@ function renderCategoryList() {
     if (c.applies_to) tags.push(c.applies_to.replace('_',' '));
     if (c.include_in_overall === 1) tags.push('incl. overall');
     if (c.points_per_fish) tags.push(c.points_per_fish + ' pts/fish');
+    if (c.is_aggregate) tags.push('aggregate');
     return `<li>
       <div class="item-info">
         <div class="item-name">${escHtml(c.name)}</div>
@@ -2857,6 +3124,7 @@ async function addCategory() {
   const sort = parseInt(document.getElementById('newCatSort').value) || (DATA.categories.length + 1);
   const ppf = parseFloat(document.getElementById('newCatPointsPerFish').value) || null;
   const includeOverall = document.getElementById('newCatIncludeOverall').checked;
+  const isAggregate = document.getElementById('newCatAggregate').checked;
   if (!name) { showToast('Enter a category name.', true); return; }
 
   const body = { name, category_group: group, scoring_type: 'points', is_standalone: false, unit: 'pts', sort_order: sort };
@@ -2864,6 +3132,7 @@ async function addCategory() {
   else if (group === 'Special') { body.is_standalone = true; body.applies_to = name.toLowerCase().replace(/\s+/g, '_'); }
   if (ppf) body.points_per_fish = ppf;
   if (includeOverall) body.include_in_overall = true;
+  if (isAggregate) body.is_aggregate = true;
 
   try {
     await api('categories', { method: 'POST', body: JSON.stringify(body) });
@@ -2871,6 +3140,7 @@ async function addCategory() {
     document.getElementById('newCatSort').value = '';
     document.getElementById('newCatPointsPerFish').value = '';
     document.getElementById('newCatIncludeOverall').checked = false;
+    document.getElementById('newCatAggregate').checked = false;
     await refreshData();
     renderCategoryList();
     showToast('Category added!');

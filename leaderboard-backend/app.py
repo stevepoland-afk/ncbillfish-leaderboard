@@ -239,6 +239,7 @@ def init_database():
         "ALTER TABLE participants ADD COLUMN email TEXT",
         "ALTER TABLE categories ADD COLUMN include_in_overall INTEGER DEFAULT NULL",
         "ALTER TABLE categories ADD COLUMN points_per_fish REAL DEFAULT NULL",
+        "ALTER TABLE categories ADD COLUMN is_aggregate INTEGER DEFAULT 0",
         "ALTER TABLE points ADD COLUMN fish_count INTEGER DEFAULT NULL",
     ]:
         try:
@@ -319,6 +320,7 @@ class CategoryCreate(BaseModel):
     sort_order: Optional[int] = 0
     include_in_overall: Optional[bool] = None
     points_per_fish: Optional[float] = None
+    is_aggregate: Optional[bool] = False
 
 class ScoringRuleCreate(BaseModel):
     label: str
@@ -926,10 +928,10 @@ def create_category(slug: str, data: CategoryCreate, user: dict = Depends(get_cu
         if data.include_in_overall is not None:
             inc_overall = 1 if data.include_in_overall else 0
         cur = conn.execute(
-            "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order, include_in_overall, points_per_fish) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order, include_in_overall, points_per_fish, is_aggregate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (s["id"], data.name, data.category_group, data.scoring_type,
              1 if data.is_standalone else 0, data.applies_to, data.unit, data.sort_order,
-             inc_overall, data.points_per_fish),
+             inc_overall, data.points_per_fish, 1 if data.is_aggregate else 0),
         )
         conn.commit()
         return dict(conn.execute("SELECT * FROM categories WHERE id = ?", (cur.lastrowid,)).fetchone())
@@ -1939,10 +1941,10 @@ async def import_data(slug: str, request: Request, user: dict = Depends(get_curr
             if inc_overall is not None:
                 inc_overall = 1 if inc_overall else 0
             cur = conn.execute(
-                "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order, include_in_overall, points_per_fish) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO categories (series_id, name, category_group, scoring_type, is_standalone, applies_to, unit, sort_order, include_in_overall, points_per_fish, is_aggregate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (series_id, c["name"], c.get("category_group"), c.get("scoring_type", "points"),
                  1 if c.get("is_standalone") else 0, c.get("applies_to"), c.get("unit", "pts"), c.get("sort_order", 0),
-                 inc_overall, c.get("points_per_fish")),
+                 inc_overall, c.get("points_per_fish"), 1 if c.get("is_aggregate") else 0),
             )
             cat_map[c["id"]] = cur.lastrowid
 
